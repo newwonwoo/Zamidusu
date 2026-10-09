@@ -110,6 +110,18 @@ export const queryToForm = (search: string): { form: FormState; auto: boolean; c
   return { form, auto: has, compat: q.get('compat') === '1' };
 };
 
+/**
+ * 주소에서 입력값을 복원한다. 공유 링크는 서버로 전송되지 않는 해시(#)에 담는다
+ * (쿼리 문자열은 정적 서버의 접근 기록에 남을 수 있다). 예전 형식(?y=…&m=…)도 읽는다.
+ * ?compat=1 은 개인정보가 아니므로 쿼리에 둔다.
+ */
+export const formFromLocation = (loc: { search: string; hash: string }): { form: FormState; auto: boolean; compat: boolean } => {
+  const fromHash = new URLSearchParams(loc.hash.replace(/^#\??/, ''));
+  const hashHasDate = fromHash.has('y') && fromHash.has('m') && fromHash.has('d');
+  const r = queryToForm(hashHasDate ? fromHash.toString() : loc.search);
+  return { ...r, compat: new URLSearchParams(loc.search).get('compat') === '1' || fromHash.get('compat') === '1' };
+};
+
 // ── 설정 저장(localStorage 가 막혀 있어도 동작) ───────────────────────────────
 const KEY = 'zamidusu.settings.v1';
 

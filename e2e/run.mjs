@@ -37,8 +37,15 @@ const newPage = async (viewport = { width: 1440, height: 1000 }, opts = {}) => {
   return { page, ctx };
 };
 
-const open = async (page, query = '') => {
-  await page.goto(server.url + (query ? `?${query}` : ''));
+// 입력값은 실제 사용처럼 해시(#)로, 검증 전용 스위치(compat)는 쿼리(?)로 전달한다.
+// 같은 페이지에서 해시만 바꾸면 다시 열리지 않으므로, 매번 빈 페이지를 거쳐 새로 연다.
+const open = async (page, params = '') => {
+  const sp = new URLSearchParams(params);
+  const compat = sp.get('compat') === '1';
+  sp.delete('compat');
+  const hash = sp.toString();
+  await page.goto('about:blank');
+  await page.goto(server.url + (compat ? '?compat=1' : '') + (hash ? `#${hash}` : ''));
   await page.waitForSelector('.cell', { timeout: 10000 });
 };
 
@@ -267,7 +274,7 @@ await run('출생지 보정(T5): 서울 13:10 → 午시', async () => {
 // ── 7. 시 모름 ──────────────────────────────────────────────────────────────────
 await run('시 모름(N-06): 12시진 비교표', async () => {
   const { page, ctx } = await newPage();
-  await page.goto(server.url + '?y=1990&m=1&d=30&h=&g=M&cal=solar');
+  await page.goto(server.url + '#y=1990&m=1&d=30&h=&g=M&cal=solar');
   await page.waitForSelector('.hour-unknown', { timeout: 8000 });
   check('12시진 행', (await page.locator('.hour-table tbody tr').count()) === 12);
   check('안내 문구', (await page.locator('.hour-unknown').innerText()).includes('명궁과 오행국이 태어난 시로 정해지기 때문'));
@@ -358,7 +365,23 @@ await run('이미지 저장·링크 복사', async () => {
   await page.getByRole('button', { name: '링크 복사' }).click();
   await page.waitForSelector('.toast');
   const clip = await page.evaluate(() => navigator.clipboard.readText());
-  check('링크에 입력값이 담긴다', clip.includes('y=1990') && clip.includes('m=1') && clip.includes('d=30') && clip.includes('h=12'), clip);
+  const [beforeHash, afterHash = ''] = clip.split('#');
+  check('링크에 입력값이 담긴다', afterHash.includes('y=1990') && afterHash.includes('m=1') && afterHash.includes('d=30') && afterHash.includes('h=12'), clip);
+  check('입력값은 해시(#)에만 있고 쿼리·경로에는 없다(서버 접근 기록에 남지 않음)', !beforeHash.includes('1990') && !beforeHash.includes('?y='), clip);
+  // 복사한 링크를 새 페이지에서 열면 같은 명반이 복원되고, 서버는 생년월일시가 든 주소를 받지 않는다
+  const mark = server.seen.length;
+  const page2 = await ctx.newPage();
+  await page2.goto(clip);
+  await page2.waitForSelector('.cell', { timeout: 10000 });
+  const restored = await page2.locator('.center').innerText();
+  check('링크를 열면 같은 입력의 명반이 복원된다', restored.includes('1990-01-30 12:00'), restored);
+  const leaked = server.seen.slice(mark).filter((u) => /[?&](y|m|d|h)=\d/.test(u));
+  check('서버가 받은 요청 주소에 생년월일시가 없다', leaked.length === 0, leaked.join(' | '));
+  // 감시 장치 점검: 예전 형식(쿼리) 링크는 서버에 그대로 보인다 — 위 확인이 헛돌지 않음을 보인다
+  const mark2 = server.seen.length;
+  await page2.goto(`${server.url}?y=1990&m=1&d=30&h=12&g=M`);
+  await page2.waitForSelector('.cell');
+  check('(점검) 쿼리 형식 주소는 서버에 보인다', server.seen.slice(mark2).some((u) => u.includes('y=1990')), server.seen.slice(mark2).join(' | '));
   await ctx.close();
 });
 
@@ -420,6 +443,10 @@ await run('URL 입력값 자동 실행 · 다크 모드', async () => {
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   check('다크 모드 배경', bg === 'rgb(20, 18, 15)', bg);
   await page.screenshot({ path: `${OUT}/13-dark.png`, fullPage: true });
+  // 같은 탭에서 주소의 해시만 바꾸면(공유 링크 붙여넣기) 새로 고치지 않아도 그 입력으로 바뀐다
+  await page.evaluate(() => { window.location.hash = 'y=1991&m=9&d=5&h=8&g=F&cal=solar'; });
+  await page.waitForFunction(() => document.querySelector('.center')?.textContent?.includes('1991-09-05 08:00'), null, { timeout: 8000 });
+  check('주소 해시 변경(hashchange)에 맞춰 명반이 바뀐다', (await page.locator('.center').innerText()).includes('여명'));
   await ctx.close();
 });
 

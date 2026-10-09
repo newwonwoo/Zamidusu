@@ -15,7 +15,7 @@ import { ReverseInput } from './ReverseInput';
 import { SajuPanel } from './SajuPanel';
 import { computeOutcome, currentDecadeIndex } from './compute';
 import type { Outcome } from './compute';
-import { defaultForm, defaultSettings, formToQuery, loadSettings, queryToForm, saveSettings } from './state';
+import { defaultForm, defaultSettings, formFromLocation, formToQuery, loadSettings, saveSettings } from './state';
 import type { FormState, Settings } from './state';
 import { stopSpeech } from './speech';
 
@@ -39,7 +39,7 @@ const useIsMobile = (): boolean => {
 };
 
 export default function App() {
-  const init = useMemo(() => queryToForm(window.location.search), []);
+  const init = useMemo(() => formFromLocation(window.location), []);
   const compat = init.compat;
   const mobile = useIsMobile();
 
@@ -99,6 +99,18 @@ export default function App() {
     run(form, settings);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 같은 탭에서 주소의 해시(#…)만 바뀌면(공유 링크를 주소창에 붙여넣기) 페이지가 다시 열리지 않으므로 직접 읽어 반영한다
+  useEffect(() => {
+    const onHashChange = () => {
+      const next = formFromLocation(window.location);
+      if (!next.auto) return;
+      setForm(next.form);
+      run(next.form, settings);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [run, settings]);
 
   // 계산에 영향을 주는 설정이 바뀌면 다시 계산(첫 마운트는 제외)
   useEffect(() => {
@@ -179,7 +191,8 @@ export default function App() {
   };
 
   const copyLink = async () => {
-    const url = `${window.location.origin}${window.location.pathname}?${formToQuery(form)}${compat ? '&compat=1' : ''}`;
+    // 입력값은 해시(#)에 담는다: 해시는 브라우저가 서버로 보내지 않는다
+    const url = `${window.location.origin}${window.location.pathname}${compat ? '?compat=1' : ''}#${formToQuery(form)}`;
     try {
       await navigator.clipboard.writeText(url);
       showToast('링크를 복사했습니다 (입력값은 주소에만 담기고 서버로 전송되지 않습니다)');
