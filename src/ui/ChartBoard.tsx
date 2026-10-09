@@ -7,7 +7,7 @@ import { fmtWall } from '../core/format';
 import { BRANCHES, BRANCHES_KO, STEMS, ZODIAC_KO } from '../core/ganzhi';
 import { MUTAGEN_LONG_KO, SCOPES, SCOPE_KO, starMeta, starLabel } from '../core/names';
 import type { Scope } from '../core/names';
-import { addDays, daysInSolarMonth, formatDelta, timeRangeLabel } from '../core/time';
+import { addDays, branchOfClock, dayAdvanced, daysInSolarMonth, formatDelta, timeRangeLabel } from '../core/time';
 import type { YMD } from '../core/time';
 import { PalaceCell } from './PalaceCell';
 import type { Highlight } from './PalaceCell';
@@ -68,6 +68,7 @@ export const stepTarget = (scope: Scope, t: ViewTarget, dir: -1 | 1): ViewTarget
 
 function FortuneBar({ chart, view, scope, onScope, decadeIndex, onDecade, target, onTarget }: Pick<Props, 'chart' | 'view' | 'scope' | 'onScope' | 'decadeIndex' | 'onDecade' | 'target' | 'onTarget'>) {
   const decades = decadalList(chart);
+  const flowShift = flowShiftOf(chart.norm);
   return (
     <div className="fortune">
       <div className="seg" role="tablist" aria-label="운 선택">
@@ -103,11 +104,11 @@ function FortuneBar({ chart, view, scope, onScope, decadeIndex, onDecade, target
           />
           {scope === 'hourly' && (
             <select aria-label="기준 시진" value={target.timeIndex} onChange={(e) => onTarget({ ...target, timeIndex: Number(e.target.value) })}>
-              {BRANCHES_KO.map((b, i) => <option key={b} value={i}>{b}시 ({timeRangeLabel(i)})</option>)}
+              {BRANCHES_KO.map((b, i) => <option key={b} value={i}>{b}시 ({timeRangeLabel(i, flowShift)})</option>)}
             </select>
           )}
           <button aria-label="다음" onClick={() => onTarget(stepTarget(scope, target, 1))}>▶</button>
-          <button className="ghost" onClick={() => onTarget({ date: todayYmd(), timeIndex: nowBranch() })}>오늘</button>
+          <button className="ghost" onClick={() => onTarget({ date: todayYmd(), timeIndex: nowBranch(flowShift) })}>오늘</button>
         </div>
       )}
       <p className="fortune-info" aria-live="polite">
@@ -127,10 +128,14 @@ const todayYmd = (): YMD => {
   const t = new Date();
   return { y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate() };
 };
-export const nowBranch = (): number => {
-  const h = new Date().getHours();
-  return h === 23 ? 0 : Math.floor((h + 1) / 2);
+/** 지금의 시진. 한국식(shiftMinutes=30)이면 :30 에 바뀐다 */
+export const nowBranch = (shiftMinutes = 0): number => {
+  const t = new Date();
+  return branchOfClock(t.getHours(), t.getMinutes(), shiftMinutes);
 };
+
+/** 유시 목록·오늘 버튼에 쓰는 시계 − 보정 후 시각(분). 한국식 명반이면 지금도 30분, 그 밖에는 0 */
+export const flowShiftOf = (norm: { correction: { mode: string } | null }): number => (norm.correction?.mode === 'korea' ? 30 : 0);
 
 function CenterInfo({ chart, view, comparison, settings }: Pick<Props, 'chart' | 'view' | 'comparison' | 'settings'>) {
   const m = chart.meta;
@@ -156,9 +161,15 @@ function CenterInfo({ chart, view, comparison, settings }: Pick<Props, 'chart' |
           </dd>
         </div>
         {n.correction && n.correction.deltaMinutes !== 0 && (
-          <div><dt>보정</dt><dd title={n.correction.note}>{n.corrected ? fmtWall(n.corrected) : ''} ({formatDelta(n.correction.deltaMinutes)})</dd></div>
+          <div>
+            <dt>보정</dt>
+            <dd title={n.correction.note}>
+              {n.corrected ? fmtWall(n.corrected) : ''}{' '}
+              ({n.correction.mode === 'korea' ? `한국식 ${n.correction.deltaMinutes < 0 ? '−' : '+'}${Math.abs(Math.round(n.correction.deltaMinutes))}분` : formatDelta(n.correction.deltaMinutes)})
+            </dd>
+          </div>
         )}
-        <div><dt>시</dt><dd>{BRANCHES_KO[m.timeBranch]}시 ({timeRangeLabel(m.timeBranch)}){n.shiftedDay ? ' · 다음 날 자시' : ''}</dd></div>
+        <div><dt>시</dt><dd>{BRANCHES_KO[m.timeBranch]}시 ({timeRangeLabel(m.timeBranch, n.clockShiftMinutes)}){dayAdvanced(n) ? ' · 다음 날 자시' : ''}</dd></div>
         <div><dt>연주</dt><dd>{STEMS[m.yearStem]}{BRANCHES[m.yearBranch]}년 <small>({chart.options.yearBasis === 'ipchun' ? '입춘' : '음력 설'} 기준)</small></dd></div>
         <div><dt>오행국</dt><dd>{m.fiveElements.ko} ({m.fiveElements.hanja})</dd></div>
         <div><dt>명주 · 신주</dt><dd>{starLabel(soul, settings.nameStyle)} · {starLabel(body, settings.nameStyle)}</dd></div>

@@ -2,7 +2,7 @@
 
 import type { BrightnessMode } from '../core/brightness';
 import type { YearBasis } from '../core/chart';
-import { CUSTOM_ID, STANDARD_ID, placeById } from '../core/place';
+import { ABROAD_ID, CUSTOM_ID, KOREA_ID, STANDARD_ID, placeById } from '../core/place';
 import type { NameStyle } from '../core/names';
 import type { BirthInput, CorrectionMode, Gender, LateZiMode, LunarBasis } from '../core/time';
 
@@ -23,10 +23,13 @@ export interface FormState {
   lunarBasis: LunarBasis;
 }
 
+/** 출생지 기본값: 한국식(동경 127.5° 기준, 시계 −30분). 원본 호환 모드는 사이트의 기본인 “표준시” */
+export const defaultPlaceId = (compat = false): string => (compat ? STANDARD_ID : KOREA_ID);
+
 /** 첫 화면 예시: 원장의 시험 입력 T6(임의 입력, 실존 인물 아님) */
-export const defaultForm = (): FormState => ({
+export const defaultForm = (compat = false): FormState => ({
   gender: 'M', calendar: 'solar', leap: false, year: 1990, month: 1, day: 30, hour: 12, minute: 0,
-  placeId: STANDARD_ID, customLon: '127.5', yearBasis: 'lunarNewYear', lunarBasis: 'korea',
+  placeId: defaultPlaceId(compat), customLon: '127.5', yearBasis: 'lunarNewYear', lunarBasis: 'korea',
 });
 
 export interface Settings {
@@ -75,7 +78,8 @@ export const formToQuery = (f: FormState): string => {
   q.set('d', String(f.day));
   q.set('h', f.hour === null ? '' : String(f.hour));
   if (f.hour !== null) q.set('mi', String(f.minute));
-  if (f.placeId !== STANDARD_ID) q.set('p', f.placeId);
+  // 한국식(기본)이면 생략한다. “시계 그대로(standard)”는 기본이 아니므로 항상 적는다(예전 링크의 생략된 p 는 한국식으로 읽는다)
+  if (f.placeId !== KOREA_ID) q.set('p', f.placeId);
   if (f.placeId === CUSTOM_ID) q.set('lon', f.customLon);
   if (f.yearBasis === 'ipchun') q.set('yb', 'ipchun');
   if (f.lunarBasis === 'china') q.set('lb', 'cn');
@@ -89,9 +93,10 @@ const num = (v: string | null, fallback: number): number => {
 };
 
 /** 쿼리에서 폼 복원. y/m/d 가 모두 있으면 자동 실행 대상(auto=true) */
-export const queryToForm = (search: string): { form: FormState; auto: boolean; compat: boolean } => {
+export const queryToForm = (search: string, compatHint?: boolean): { form: FormState; auto: boolean; compat: boolean } => {
   const q = new URLSearchParams(search);
-  const base = defaultForm();
+  const compat = compatHint ?? q.get('compat') === '1';
+  const base = defaultForm(compat);
   const has = q.has('y') && q.has('m') && q.has('d');
   const hRaw = q.get('h');
   const form: FormState = {
@@ -105,13 +110,13 @@ export const queryToForm = (search: string): { form: FormState; auto: boolean; c
     minute: num(q.get('mi'), 0),
     placeId: (() => {
       const p = q.get('p');
-      return p && (p === CUSTOM_ID || placeById(p) || p === 'abroad') ? p : STANDARD_ID;
+      return p && (p === CUSTOM_ID || p === STANDARD_ID || p === KOREA_ID || p === ABROAD_ID || placeById(p)) ? p : defaultPlaceId(compat);
     })(),
     customLon: q.get('lon') ?? base.customLon,
     yearBasis: q.get('yb') === 'ipchun' ? 'ipchun' : 'lunarNewYear',
     lunarBasis: q.get('lb') === 'cn' ? 'china' : 'korea',
   };
-  return { form, auto: has, compat: q.get('compat') === '1' };
+  return { form, auto: has, compat };
 };
 
 /**
@@ -122,8 +127,8 @@ export const queryToForm = (search: string): { form: FormState; auto: boolean; c
 export const formFromLocation = (loc: { search: string; hash: string }): { form: FormState; auto: boolean; compat: boolean } => {
   const fromHash = new URLSearchParams(loc.hash.replace(/^#\??/, ''));
   const hashHasDate = fromHash.has('y') && fromHash.has('m') && fromHash.has('d');
-  const r = queryToForm(hashHasDate ? fromHash.toString() : loc.search);
-  return { ...r, compat: new URLSearchParams(loc.search).get('compat') === '1' || fromHash.get('compat') === '1' };
+  const compat = new URLSearchParams(loc.search).get('compat') === '1' || fromHash.get('compat') === '1';
+  return queryToForm(hashHasDate ? fromHash.toString() : loc.search, compat);
 };
 
 // ── 설정 저장(localStorage 가 막혀 있어도 동작) ───────────────────────────────

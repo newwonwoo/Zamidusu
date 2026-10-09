@@ -82,7 +82,9 @@ describe('V-06 출생지 보정(T5, I-07)', () => {
     // 23시대는 다음 날 자시로 이월 → 엔진 날짜는 3월 10일, 시진 子
     expect(v.engineDate).toEqual({ y: 1990, m: 3, d: 10 });
     expect(v.timeIndex).toBe(0);
-    expect(v.notes.length).toBeGreaterThanOrEqual(2);
+    // 안내는 한 문장으로 합쳤다: 보정으로 전날 23시대가 되지만 다음 날 자시로 보므로 입력한 날짜의 자시로 계산한다
+    expect(v.notes.filter((n) => n.includes('입력한 날짜의 자시')).length).toBe(1);
+    expect(v.notes.some((n) => n.includes('넘어갔습니다'))).toBe(false);
   });
 
   it('해외 출생: 뉴욕 1990-03-10 13:10(EST)은 경도·시계 오프셋으로 계산한다', () => {

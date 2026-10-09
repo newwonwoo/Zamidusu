@@ -3,7 +3,7 @@
 
 import { Solar, Lunar } from './lunarlib';
 import { leapMonthOfKr, lunarMonthDaysKr, lunarToSolarKr, solarToLunarKr } from './lunarkr';
-import { ABROAD_ID, CUSTOM_ID, KOREA_TZ, STANDARD_ID, placeById } from './place';
+import { ABROAD_ID, CUSTOM_ID, KOREA_ID, KOREA_MERIDIAN, KOREA_TZ, STANDARD_ID, placeById } from './place';
 
 export interface Wall {
   y: number;
@@ -39,7 +39,7 @@ export interface BirthInput {
   hour: number | null;
   minute: number;
   gender: Gender;
-  /** STANDARD_ID | CUSTOM_ID | ABROAD_ID(호환 모드 전용) | 출생지 id */
+  /** KOREA_ID(한국식, 기본) | STANDARD_ID(시계 그대로) | CUSTOM_ID | ABROAD_ID(호환 모드 전용) | 출생지 id */
   placeId: string;
   customLon?: number;
   customTz?: string;
@@ -189,19 +189,37 @@ export const equationOfTimeMinutes = (utcMs: number): number => {
 // ── 시진 ─────────────────────────────────────────────────────────────────────
 export const TIME_BRANCH_NAMES = ['자', '축', '인', '묘', '진', '사', '오', '미', '신', '유', '술', '해'] as const;
 
-/** 시(0~23) → 시진 인덱스(0=子 … 11=亥). 23시는 子로 본다(이월은 호출자가 별도 처리). */
+/** 보정 후 시(0~23) → 시진 인덱스(0=子 … 11=亥). 23시는 子로 본다(이월은 호출자가 별도 처리). */
 export const hourToBranch = (h: number): number => (h === 23 ? 0 : Math.floor((h + 1) / 2));
 
-export const timeRangeLabel = (branch: number): string => {
-  const start = (branch * 2 + 23) % 24;
-  const end = (start + 2) % 24;
-  const f = (n: number): string => `${String(n).padStart(2, '0')}:00`;
-  return `${f(start)}~${f(end)}`;
+/**
+ * 시계 시각(h:mi) → 시진 인덱스. shiftMinutes 는 시계가 보정 후 시각보다 앞선 분(한국식은 30)이다.
+ * 한국식에서는 시진이 :30 에 바뀐다(11:29 는 巳, 11:30 은 午). 23시대의 날짜 이월은 호출자가 따로 처리한다.
+ */
+export const branchOfClock = (h: number, mi: number, shiftMinutes: number): number => {
+  const effective = (((h * 60 + mi - Math.round(shiftMinutes)) % 1440) + 1440) % 1440;
+  return hourToBranch(Math.floor(effective / 60));
+};
+
+/** 시진의 한가운데에 해당하는 시계 시각(시·분). 시진을 정해 주는 화면(시 모름·역산)이 경계에 걸리지 않도록 쓴다 */
+export const representativeClock = (branch: number, shiftMinutes: number): { hour: number; minute: number } => {
+  const c = ((((branch * 2) % 24) * 60 + Math.round(shiftMinutes)) % 1440 + 1440) % 1440;
+  return { hour: Math.floor(c / 60), minute: c % 60 };
+};
+
+/** 시진이 시작하는 시계 시각 ~ 끝나는 시계 시각. shiftMinutes 가 30 이면 午 = 11:30~13:30 */
+export const timeRangeLabel = (branch: number, shiftMinutes = 0): string => {
+  const start = ((branch * 2 + 23) % 24) * 60 + Math.round(shiftMinutes);
+  const f = (min: number): string => {
+    const m = ((min % 1440) + 1440) % 1440;
+    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
+  return `${f(start)}~${f(start + 120)}`;
 };
 
 // ── 보정 ─────────────────────────────────────────────────────────────────────
 export interface CorrectionDetail {
-  mode: CorrectionMode | 'compat';
+  mode: CorrectionMode | 'compat' | 'korea';
   placeName: string;
   /** 보정 후 − 보정 전, 분 단위(소수 가능) */
   deltaMinutes: number;
@@ -231,7 +249,7 @@ const fromMs = (ms: number): Wall => {
 
 /** 호환 모드: 사이트로 추정되는 보정(표준시 0 / 해외 −30분 / 지역 trunc((경도−127.5)×4)분). 근사다. */
 const compatDelta = (input: BirthInput): { delta: number; placeName: string; lon: number } => {
-  if (input.placeId === STANDARD_ID) return { delta: 0, placeName: '표준시', lon: 135 };
+  if (input.placeId === STANDARD_ID || input.placeId === KOREA_ID) return { delta: 0, placeName: '표준시', lon: 135 };
   const place = placeById(input.placeId);
   if (input.placeId === ABROAD_ID || (place && !place.domestic)) {
     return { delta: -30, placeName: place?.name ?? '해외출생', lon: place?.lon ?? 0 };
@@ -239,6 +257,9 @@ const compatDelta = (input: BirthInput): { delta: number; placeName: string; lon
   const lon = input.placeId === CUSTOM_ID ? (input.customLon ?? 127.5) : (place?.lon ?? 127.5);
   return { delta: Math.trunc((lon - 127.5) * 4), placeName: place?.name ?? '직접 입력', lon };
 };
+
+const utcLabel = (offsetMinutes: number): string =>
+  `UTC${offsetMinutes >= 0 ? '+' : '−'}${Math.floor(Math.abs(offsetMinutes) / 60)}:${String(Math.abs(offsetMinutes) % 60).padStart(2, '0')}`;
 
 export interface CorrectionResult {
   corrected: Wall;
@@ -255,6 +276,27 @@ export const correctTime = (civil: Wall, input: BirthInput, settings: TimeSettin
       detail: {
         mode: 'compat', placeName: c.placeName, deltaMinutes: c.delta, offsetMinutes: 540, dst: false, longitude: c.lon,
         longitudeMinutes: c.delta, eotMinutes: 0, note: '원본 호환 모드: 사이트 보정을 근사한 값(검증 전용)',
+      },
+    };
+  }
+
+  // 한국식: 동경 127.5°(UTC+8:30) 기준. 그 순간의 시계 오프셋(UTC+9, 1954~61년 UTC+8:30, 서머타임 +1)을 시간대 데이터에서 읽어
+  // 시계에서 뺀다. 균시차는 더하지 않는다(한국식은 지방시가 아니라 한반도 표준 자오선 기준). 보정 안 함(none)이면 시계 그대로다.
+  if (input.placeId === KOREA_ID && settings.correction !== 'none') {
+    const utc = civilToUtcMs(KOREA_TZ, civil);
+    const offset = tzOffsetMinutes(KOREA_TZ, utc);
+    const target = KOREA_MERIDIAN * 4;
+    // 1908-04-01 이전은 표준시가 없던 지방시 시기라 보정하지 않는다(그 뒤로 UTC+8:30 이상)
+    const delta = offset < target - 1 ? 0 : target - offset;
+    const dst = isDstAt(KOREA_TZ, utc);
+    return {
+      corrected: fromMs(civilMs + Math.round(delta * 60000)),
+      detail: {
+        mode: 'korea', placeName: '한국식(동경 127.5°)', deltaMinutes: delta, offsetMinutes: offset, dst, longitude: KOREA_MERIDIAN,
+        longitudeMinutes: delta, eotMinutes: 0,
+        note: delta === 0
+          ? `한국식(동경 127.5°, ${utcLabel(target)}) 기준 — 시계가 이미 같은 시각이라 보정이 없습니다(${utcLabel(offset)})`
+          : `한국식(동경 127.5°, ${utcLabel(target)}) 기준 — 시계 ${utcLabel(offset)}${dst ? '(서머타임)' : ''}에서 ${Math.abs(Math.round(delta))}분을 ${delta < 0 ? '뺐' : '더했'}습니다`,
       },
     };
   }
@@ -285,7 +327,7 @@ export const correctTime = (civil: Wall, input: BirthInput, settings: TimeSettin
     detail: {
       mode: settings.correction, placeName: label, deltaMinutes: delta, offsetMinutes: offset, dst, longitude: lon,
       longitudeMinutes: lonMin, eotMinutes: eot,
-      note: `${label} 경도 ${lon}°, 시계 UTC${offset >= 0 ? '+' : '−'}${Math.floor(Math.abs(offset) / 60)}:${String(Math.abs(offset) % 60).padStart(2, '0')}${dst ? '(서머타임)' : ''}`,
+      note: `${label} 경도 ${lon}°, 시계 ${utcLabel(offset)}${dst ? '(서머타임)' : ''}`,
     },
   };
 };
@@ -303,6 +345,11 @@ export interface NormalizedBirth {
   /** 보정 후 시각(시를 모르면 null) */
   corrected: Wall | null;
   correction: CorrectionDetail | null;
+  /**
+   * 시계 시각이 보정 후 시각보다 앞선 분(한국식 30, 보정 없음 0, 서울 진태양시 약 40). 시진 범위를 “입력한 시계 시각” 기준으로
+   * 보여 줄 때 쓴다(午 = 11:30~13:30). 시를 모르면 그날 정오를 기준으로 구한다.
+   */
+  clockShiftMinutes: number;
   /** 엔진에 넘길 양력일(자시 이월 반영) */
   engineDate: YMD;
   /** 엔진 시진(0=子 … 11=亥). 시를 모르면 null */
@@ -318,6 +365,15 @@ export interface NormalizedBirth {
   lunarInput?: LunarDate;
   notes: string[];
 }
+
+const clockShiftOfDetail = (d: CorrectionDetail): number => (d.deltaMinutes === 0 ? 0 : -d.deltaMinutes);
+
+/**
+ * 명반에 쓰는 날짜가 입력한 날짜보다 하루 뒤인가(23시대를 다음 날 자시로 본 경우).
+ * 한국식으로 00:10 이 전날 23시대가 되어도 다음 날 자시로 보면 입력한 날짜 그대로이므로 false 다(화면의 “다음 날 자시” 표시 기준).
+ */
+export const dayAdvanced = (n: Pick<NormalizedBirth, 'engineDate' | 'civil'>): boolean =>
+  cmpYMD(n.engineDate, { y: n.civil.y, m: n.civil.m, d: n.civil.d }) > 0;
 
 export type NormalizeResult = { ok: true; value: NormalizedBirth } | { ok: false; errors: string[] };
 
@@ -377,26 +433,31 @@ export const normalizeBirth = (input: BirthInput, settings: TimeSettings): Norma
   const instantUtcMs = civilToUtcMs(tz, civil);
 
   if (!hourKnown) {
+    const shift = clockShiftOfDetail(correctTime(civil, input, settings).detail);
     return {
       ok: true,
       value: {
-        gender: input.gender, tz, instantUtcMs, civil, hourKnown: false, corrected: null, correction: null, engineDate: solar, timeIndex: null,
-        lateZi: false, shiftedDay: false, inputCalendar: input.calendar, lunarBasis: basis, lunarInput, notes,
+        gender: input.gender, tz, instantUtcMs, civil, hourKnown: false, corrected: null, correction: null, clockShiftMinutes: shift,
+        engineDate: solar, timeIndex: null, lateZi: false, shiftedDay: false, inputCalendar: input.calendar, lunarBasis: basis, lunarInput, notes,
       },
     };
   }
 
   const { corrected, detail } = correctTime(civil, input, settings);
-  if (corrected.y !== civil.y || corrected.m !== civil.m || corrected.d !== civil.d) {
-    notes.push(`보정으로 날짜가 ${corrected.y}-${corrected.m}-${corrected.d}로 넘어갔습니다. 보정된 날짜로 명반을 계산합니다.`);
-  }
   if (detail.dst) notes.push('출생 당시 서머타임이 적용되던 시기라 시계 시각에서 서머타임 1시간을 반영해 보정했습니다.');
 
   const lateZi = corrected.h === 23;
   const shiftedDay = lateZi && settings.lateZi === 'next';
   const correctedDay: YMD = { y: corrected.y, m: corrected.m, d: corrected.d };
   const engineDate = shiftedDay ? addDays(correctedDay, 1) : correctedDay;
-  if (shiftedDay) notes.push('23시대는 다음 날 자시로 보아 날짜를 하루 넘겨 계산합니다(설정에서 당일 자시로 바꿀 수 있음).');
+  const movedByCorrection = cmpYMD(correctedDay, solar) !== 0;
+  if (shiftedDay && movedByCorrection && cmpYMD(engineDate, solar) === 0) {
+    // 예: 한국식 보정으로 00:10 → 전날 23:40. 23시대는 다음 날 자시로 보므로 날짜는 입력한 그대로다
+    notes.push(`보정으로 시각이 ${corrected.y}-${corrected.m}-${corrected.d} ${String(corrected.h).padStart(2, '0')}:${String(corrected.mi).padStart(2, '0')}(전날 23시대)이 되지만, 23시대는 다음 날 자시로 보므로 입력한 날짜의 자시로 계산합니다(설정에서 당일 자시로 바꿀 수 있음).`);
+  } else {
+    if (movedByCorrection) notes.push(`보정으로 날짜가 ${corrected.y}-${corrected.m}-${corrected.d}로 넘어갔습니다. 보정된 날짜로 명반을 계산합니다.`);
+    if (shiftedDay) notes.push('23시대는 다음 날 자시로 보아 날짜를 하루 넘겨 계산합니다(설정에서 당일 자시로 바꿀 수 있음).');
+  }
 
   if (cmpYMD(engineDate, MIN_DATE) < 0 || cmpYMD(engineDate, MAX_DATE) > 0) {
     return { ok: false, errors: ['보정 후 날짜가 계산 가능한 범위를 벗어났습니다.'] };
@@ -405,8 +466,18 @@ export const normalizeBirth = (input: BirthInput, settings: TimeSettings): Norma
   return {
     ok: true,
     value: {
-      gender: input.gender, tz, instantUtcMs, civil, hourKnown: true, corrected, correction: detail, engineDate,
-      timeIndex: hourToBranch(corrected.h), lateZi, shiftedDay, inputCalendar: input.calendar, lunarBasis: basis, lunarInput, notes,
+      gender: input.gender, tz, instantUtcMs, civil, hourKnown: true, corrected, correction: detail, clockShiftMinutes: clockShiftOfDetail(detail),
+      engineDate, timeIndex: hourToBranch(corrected.h), lateZi, shiftedDay, inputCalendar: input.calendar, lunarBasis: basis, lunarInput, notes,
     },
   };
+};
+
+/**
+ * 폼에 입력한 출생지·날짜로 본 “시계 − 보정 후 시각”(분). 시진 범위와 시 드롭다운 표기에 쓴다(그날 정오 기준).
+ * 날짜가 올바르지 않으면 기본 기준(한국식 30분, 그 밖에는 0)을 돌려준다.
+ */
+export const clockShiftOf = (input: BirthInput, settings: TimeSettings): number => {
+  const r = normalizeBirth({ ...input, hour: 12, minute: 0 }, settings);
+  if (r.ok) return r.value.clockShiftMinutes;
+  return !settings.compat && input.placeId === KOREA_ID && settings.correction !== 'none' ? 30 : 0;
 };

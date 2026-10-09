@@ -81,7 +81,15 @@ export const PLACES: Place[] = [
   ...parse('해외·유럽·오세아니아', 'Pacific/Auckland', false, '오클랜드 174.76'),
 ];
 
+/** 시계 시각 그대로(보정 안 함) — 사이트의 “표준시” 선택지와 같다 */
 export const STANDARD_ID = 'standard';
+/**
+ * 한국식(기본): 동경 127.5°(한반도 중앙) 기준으로 시진을 정한다. 한국 표준시(동경 135°)는 이보다 30분 빠르므로
+ * 시계에서 30분을 뺀다(자시 = 23:30~01:30). 1954~61년(UTC+8:30)과 서머타임은 시간대 데이터로 자동 반영한다.
+ */
+export const KOREA_ID = 'korea';
+/** 한국식 기준 자오선(동경, 도) */
+export const KOREA_MERIDIAN = 127.5;
 export const CUSTOM_ID = 'custom';
 /** 호환 모드 전용: 사이트의 “해외출생 −30분” 선택지 */
 export const ABROAD_ID = 'abroad';

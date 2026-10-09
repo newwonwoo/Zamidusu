@@ -11,7 +11,7 @@ import type { Chart, View } from '../src/core/chart';
 import { explainPalace } from '../src/core/explain/compose';
 import { BRANCHES, STEMS, isYangStem, mod, tigerStem } from '../src/core/ganzhi';
 import { PALACE_KEYS, SCOPES } from '../src/core/names';
-import { CUSTOM_ID } from '../src/core/place';
+import { CUSTOM_ID, KOREA_ID } from '../src/core/place';
 import { lunarMonthDays, normalizeBirth } from '../src/core/time';
 import type { YMD } from '../src/core/time';
 import { computeOutcome } from '../src/ui/compute';
@@ -132,7 +132,10 @@ const SCENARIOS: Scenario[] = [
   { id: 'T4', label: '1991-09-05 여 8시', form: { year: 1991, month: 9, day: 5, hour: 8, gender: 'F' } },
   { id: 'T5-표준', label: '1990-03-10 남 13:10 · 표준시', form: { year: 1990, month: 3, day: 10, hour: 13, minute: 10, gender: 'M', placeId: 'standard' } },
   { id: 'T5-서울', label: '1990-03-10 남 13:10 · 서울(진태양시)', form: { year: 1990, month: 3, day: 10, hour: 13, minute: 10, gender: 'M', placeId: SEOUL }, settings: { correction: 'true' } },
+  { id: 'T5-한국식', label: '1990-03-10 남 13:10 · 한국식(시계 −30분, 기본)', form: { year: 1990, month: 3, day: 10, hour: 13, minute: 10, gender: 'M', placeId: KOREA_ID }, settings: { correction: 'true' } },
   { id: 'T6', label: '1990-01-30 남 12시', form: { year: 1990, month: 1, day: 30, hour: 12, gender: 'M' } },
+  { id: 'T6-한국식', label: '1990-01-30 남 12시 · 한국식(첫 화면 그대로)', form: { year: 1990, month: 1, day: 30, hour: 12, gender: 'M', placeId: KOREA_ID }, settings: { correction: 'true' } },
+  { id: 'H1-한국식', label: '1990-03-10 남 00:10 · 한국식(23:40 → 자시, 날짜 그대로)', form: { year: 1990, month: 3, day: 10, hour: 0, minute: 10, gender: 'M', placeId: KOREA_ID }, settings: { correction: 'true' } },
   { id: 'T6-입춘', label: '1990-01-30 남 12시 · 입춘 기준', form: { year: 1990, month: 1, day: 30, hour: 12, gender: 'M', yearBasis: 'ipchun' } },
   // 한국·중국 음력이 다른 날(I-15): 같은 생일시가 음력 기준에 따라 다른 명반이 된다
   { id: 'K1-한국', label: '2023-05-19 남 12시 · 한국 음력(3월 30일)', form: { year: 2023, month: 5, day: 19, hour: 12, gender: 'M', lunarBasis: 'korea' } },
@@ -180,11 +183,13 @@ describe('원장 시험 입력 T1~T6 (끝에서 끝까지)', () => {
     });
   }
 
-  it('T5: 같은 생일시를 표준시로 보면 未시, 서울 진태양시로 보면 午시 — 명반이 달라진다(I-07 개선)', () => {
+  it('T5: 같은 생일시를 시계 그대로 보면 未시, 한국식(−30분)이나 서울 진태양시로 보면 午시 — 명반이 달라진다(I-07 개선, I-16)', () => {
     const std = run({ year: 1990, month: 3, day: 10, hour: 13, minute: 10, placeId: 'standard' });
     const seoul = run({ year: 1990, month: 3, day: 10, hour: 13, minute: 10, placeId: SEOUL }, { correction: 'true' });
+    const koreaStyle = run({ year: 1990, month: 3, day: 10, hour: 13, minute: 10, placeId: KOREA_ID }, { correction: 'true' });
     expect(std.chart.meta.timeBranch).toBe(7);
     expect(seoul.chart.meta.timeBranch).toBe(6);
+    expect(koreaStyle.chart.meta.timeBranch).toBe(6);
     const pos = (c: Chart, key: string) => c.palaces.find((p) => p.stars.some((s) => s.key === key))?.branch;
     expect(pos(std.chart, '文昌')).not.toBe(pos(seoul.chart, '文昌'));
   });

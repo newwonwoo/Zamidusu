@@ -384,7 +384,12 @@ await run('출생지 보정(T5): 서울 13:10 → 午시', async () => {
   const { page, ctx } = await newPage();
   await open(page, 'y=1990&m=3&d=10&h=13&mi=10&g=M&cal=solar');
   let center = await page.locator('.center').innerText();
-  check('표준시(보정 없음)는 未시', center.includes('미시'), center);
+  check('기본(한국식 −30분)은 12:40 이라 午시', center.includes('오시') && center.includes('한국식 −30분'), center);
+  await page.locator('select').filter({ has: page.locator('option[value="standard"]') }).selectOption('standard');
+  await page.getByRole('button', { name: '명반 보기' }).click();
+  await page.waitForFunction(() => !document.querySelector('.center')?.textContent?.includes('보정'));
+  center = await page.locator('.center').innerText();
+  check('시계 시각 그대로(보정 없음)는 未시', center.includes('미시') && !center.includes('보정'), center);
   await page.locator('select').filter({ has: page.locator('option[value="standard"]') }).selectOption('특별·광역시-서울');
   await page.getByRole('button', { name: '명반 보기' }).click();
   await page.waitForFunction(() => document.querySelector('.center')?.textContent?.includes('보정'));
@@ -399,6 +404,100 @@ await run('출생지 보정(T5): 서울 13:10 → 午시', async () => {
   const lonErr = await page.locator('.errors').innerText();
   check('경도 빈 칸: 숫자를 입력하라는 안내(0°로 계산하지 않음)', lonErr.includes('경도'), lonErr);
   await ctx.close();
+});
+
+// ── 6-2. 한국식 시각(I-16): 시진이 :30 에 바뀐다 ────────────────────────────────────
+await run('한국식 시각(I-16): 시 드롭다운·미리보기·중앙 블록·시 모름 표·링크', async () => {
+  const { page, ctx } = await newPage();
+  await open(page);
+  const hourSel = page.locator('select').filter({ has: page.locator('option[value="x"]') });
+  const minSel = page.locator('select').filter({ has: page.locator('option[value="59"]') });
+  const placeSel = page.locator('select').filter({ has: page.locator('option[value="standard"]') });
+  const opt = async (v) => (await hourSel.locator(`option[value="${v}"]`).innerText()).replace(/\s+/g, ' ').trim();
+  const soul = async () => (await page.locator('.center-list div').filter({ hasText: '명궁 · 신궁' }).locator('dd').innerText()).trim();
+
+  check('출생지 기본은 한국식(동경 127.5°, 시계 −30분)', (await placeSel.inputValue()) === 'korea' && (await placeSel.locator('option[value="korea"]').innerText()).includes('−30분'));
+  check('시 드롭다운: 홀수 시는 두 시진에 걸친다(11시 사·오시, 1시 자·축시, 23시 해·자시)',
+    (await opt(11)) === '11시 (사·오시)' && (await opt(1)) === '1시 (자·축시)' && (await opt(23)) === '23시 (해·자시)', `${await opt(11)} / ${await opt(1)} / ${await opt(23)}`);
+  check('시 드롭다운: 짝수 시는 한 시진(12시 오시, 0시 자시, 10시 사시)', (await opt(12)) === '12시 (오시)' && (await opt(0)) === '0시 (자시)' && (await opt(10)) === '10시 (사시)', `${await opt(12)} / ${await opt(0)} / ${await opt(10)}`);
+  let center = await page.locator('.center').innerText();
+  check('중앙 블록: 오시(11:30~13:30), 보정 후 11:30, 한국식 −30분', center.includes('오시 (11:30~13:30)') && center.includes('11:30') && center.includes('한국식 −30분'), center);
+  check('미리보기: 12:00 은 오시(11:30~13:30)', (await page.locator('.time-preview').innerText()).includes('오시(11:30~13:30)'));
+
+  // 11:20 → 사시, 11:40 → 오시 : 같은 11시라도 :30 에서 시진이 바뀌어 명반이 달라진다
+  await hourSel.selectOption('11');
+  await minSel.selectOption('20');
+  check('미리보기: 11:20 은 사시(09:30~11:30)', (await page.locator('.time-preview').innerText()).includes('사시(09:30~11:30)'), await page.locator('.time-preview').innerText());
+  await page.getByRole('button', { name: '명반 보기' }).click();
+  await page.waitForFunction(() => document.querySelector('.center')?.textContent?.includes('사시 (09:30~11:30)'));
+  const soul1120 = await soul();
+  await minSel.selectOption('40');
+  check('미리보기: 11:40 은 오시(11:30~13:30)', (await page.locator('.time-preview').innerText()).includes('오시(11:30~13:30)'));
+  await page.getByRole('button', { name: '명반 보기' }).click();
+  await page.waitForFunction(() => document.querySelector('.center')?.textContent?.includes('오시 (11:30~13:30)'));
+  const soul1140 = await soul();
+  check('11:20(사시)과 11:40(오시)의 명궁이 다르다', soul1120 !== soul1140, `${soul1120} / ${soul1140}`);
+
+  // 자시: 23:30 에 시작한다
+  await hourSel.selectOption('23');
+  await minSel.selectOption('29');
+  check('23:29 는 해시', (await page.locator('.time-preview').innerText()).includes('해시(21:30~23:30)'), await page.locator('.time-preview').innerText());
+  await minSel.selectOption('40');
+  let pv = await page.locator('.time-preview').innerText();
+  check('23:40 은 자시이고 다음 날 자시로 계산한다', pv.includes('자시(23:30~01:30)') && pv.includes('다음 날 자시'), pv);
+  await hourSel.selectOption('0');
+  await minSel.selectOption('10');
+  pv = await page.locator('.time-preview').innerText();
+  check('00:10 도 자시(날짜 이월 없음)', pv.includes('자시(23:30~01:30)') && !pv.includes('다음 날'), pv);
+
+  // 링크: 한국식(기본)은 p 를 생략한다 / 시계 그대로는 p=standard
+  await page.getByRole('button', { name: '링크 복사' }).click();
+  let link = await page.evaluate(() => navigator.clipboard.readText());
+  check('링크: 한국식은 p 를 적지 않는다', !link.includes('p='), link);
+  await placeSel.selectOption('standard');
+  check('시계 그대로: 시 드롭다운이 정시 기준(11시 오시)으로 바뀐다', (await opt(11)) === '11시 (오시)' && (await opt(12)) === '12시 (오시)' && (await opt(0)) === '0시 (자시)', `${await opt(11)} / ${await opt(12)}`);
+  await hourSel.selectOption('11');
+  await minSel.selectOption('20');
+  await page.getByRole('button', { name: '명반 보기' }).click();
+  await page.waitForFunction(() => document.querySelector('.center')?.textContent?.includes('오시 (11:00~13:00)'));
+  center = await page.locator('.center').innerText();
+  check('시계 그대로: 11:20 은 오시(11:00~13:00)이고 보정 줄이 없다', center.includes('오시 (11:00~13:00)') && !center.includes('보정'), center);
+  await page.getByRole('button', { name: '링크 복사' }).click();
+  link = await page.evaluate(() => navigator.clipboard.readText());
+  check('링크: 시계 그대로는 p=standard', link.includes('p=standard'), link);
+
+  // 고급 설정의 “보정 안 함”은 한국식도 끈다
+  await placeSel.selectOption('korea');
+  await page.locator('details.advanced summary').click();
+  await page.locator('input[name="corr"]').nth(2).check(); // 진태양시 · 평균태양시 · 보정 안 함
+  await page.getByRole('button', { name: '명반 보기' }).click();
+  await page.waitForFunction(() => !document.querySelector('.center')?.textContent?.includes('보정'));
+  check('보정 안 함: 한국식을 골라도 시계 그대로(안내가 보인다)', (await page.locator('.input-form').innerText()).includes('시계 시각 그대로 계산합니다'));
+  await ctx.close();
+
+  // 시 모름 표와 유시 목록의 시진 범위도 :30 기준이다
+  const p2 = await newPage();
+  await p2.page.goto(server.url + '#y=1990&m=1&d=30&h=&g=M&cal=solar');
+  await p2.page.waitForSelector('.hour-unknown', { timeout: 8000 });
+  const ranges = await p2.page.locator('.hour-table tbody tr td:nth-child(2)').allInnerTexts();
+  check('시 모름 표: 자시 23:30~01:30, 오시 11:30~13:30', ranges[0] === '23:30~01:30' && ranges[6] === '11:30~13:30', ranges.join(' | '));
+  await p2.page.locator('.hour-table tbody tr').nth(6).getByRole('button').click();
+  await p2.page.waitForSelector('.cell');
+  const sel2 = p2.page.locator('select').filter({ has: p2.page.locator('option[value="x"]') });
+  check('시 모름에서 시진을 고르면 그 시진의 한가운데(12:30)로 채운다', (await sel2.inputValue()) === '12' && (await p2.page.locator('select').filter({ has: p2.page.locator('option[value="59"]') }).inputValue()) === '30');
+  check('午시 명반(한국식 12:30 → 12:00)', (await p2.page.locator('.center').innerText()).includes('오시 (11:30~13:30)'));
+  await p2.page.getByRole('tab', { name: '유시' }).click();
+  const hourly = await p2.page.locator('select[aria-label="기준 시진"] option').allInnerTexts();
+  check('유시 목록: 오시 (11:30~13:30)', hourly.some((t) => t.replace(/\s+/g, ' ').includes('오시 (11:30~13:30)')) && hourly[0].includes('23:30~01:30'), hourly.join(' | '));
+  await p2.ctx.close();
+
+  // 원본 호환 모드: 한국식 선택지가 없고 기본은 표준시(사이트와 같음)
+  const p3 = await newPage();
+  await open(p3.page, 'compat=1');
+  const place3 = p3.page.locator('select').filter({ has: p3.page.locator('option[value="standard"]') });
+  check('호환 모드: 기본 출생지는 표준시, 한국식 선택지 없음', (await place3.inputValue()) === 'standard' && (await place3.locator('option[value="korea"]').count()) === 0);
+  check('호환 모드: 12:00 은 오시(11:00~13:00) — 시계 그대로', (await p3.page.locator('.center').innerText()).includes('오시 (11:00~13:00)'));
+  await p3.ctx.close();
 });
 
 // ── 7. 시 모름 ──────────────────────────────────────────────────────────────────

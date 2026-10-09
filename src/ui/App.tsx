@@ -4,7 +4,8 @@ import { buildView, decadalList, viewForDecade } from '../core/chart';
 import type { ViewTarget, YearBasis } from '../core/chart';
 import type { Scope } from '../core/names';
 import { PALACE_SHORT } from '../core/names';
-import { STANDARD_ID } from '../core/place';
+import { KOREA_ID } from '../core/place';
+import { representativeClock } from '../core/time';
 import type { ReverseCandidate } from '../core/reverse';
 import { birthInputOf } from '../core/reverse';
 import { ChartBoard, nowBranch } from './ChartBoard';
@@ -16,16 +17,16 @@ import { ReverseInput } from './ReverseInput';
 import { SajuPanel } from './SajuPanel';
 import { computeOutcome, currentDecadeIndex } from './compute';
 import type { Outcome } from './compute';
-import { defaultForm, defaultSettings, formFromLocation, formToQuery, loadSettings, saveSettings } from './state';
+import { defaultForm, defaultPlaceId, defaultSettings, formFromLocation, formToQuery, loadSettings, saveSettings } from './state';
 import type { FormState, Settings } from './state';
 import { stopSpeech } from './speech';
 
 type Dialogs = null | 'font' | 'options' | 'manse';
 type MobileTab = 'chart' | 'explain' | 'saju';
 
-const todayTarget = (): ViewTarget => {
+const todayTarget = (shiftMinutes = 0): ViewTarget => {
   const t = new Date();
-  return { date: { y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate() }, timeIndex: nowBranch() };
+  return { date: { y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate() }, timeIndex: nowBranch(shiftMinutes) };
 };
 
 const useIsMobile = (): boolean => {
@@ -50,7 +51,7 @@ export default function App() {
   const [errors, setErrors] = useState<string[]>([]);
   const [scope, setScope] = useState<Scope>('natal');
   const [decadeIndex, setDecadeIndex] = useState(0);
-  const [target, setTarget] = useState<ViewTarget>(todayTarget);
+  const [target, setTarget] = useState<ViewTarget>(() => todayTarget(!compat && init.form.placeId === KOREA_ID && settings.correction !== 'none' ? 30 : 0));
   const [selected, setSelected] = useState(0);
   const [rightTab, setRightTab] = useState<'explain' | 'saju'>('explain');
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
@@ -158,8 +159,11 @@ export default function App() {
 
   const useCandidate = (c: ReverseCandidate, year: number) => {
     const bi = birthInputOf(c, year, form.gender);
+    // 후보는 시진만 정해져 있으므로, 시진 경계에 걸리지 않게 그 시진의 한가운데 시각으로 채운다(한국식이면 12:30 처럼)
+    const placeId = defaultPlaceId(compat);
+    const mid = representativeClock(c.hourBranch, placeId === KOREA_ID && settings.correction !== 'none' ? 30 : 0);
     const next: FormState = {
-      ...form, calendar: 'lunar', leap: false, year: bi.year, month: bi.month, day: bi.day, hour: bi.hour, minute: 0, placeId: STANDARD_ID,
+      ...form, calendar: 'lunar', leap: false, year: bi.year, month: bi.month, day: bi.day, hour: mid.hour, minute: mid.minute, placeId,
       yearBasis: 'lunarNewYear',
     };
     setForm(next);
@@ -169,7 +173,8 @@ export default function App() {
   };
 
   const pickHour = (branch: number) => {
-    const next = { ...form, hour: branch === 0 ? 0 : branch * 2, minute: 0 };
+    const mid = representativeClock(branch, outcome?.norm.clockShiftMinutes ?? 0);
+    const next = { ...form, hour: mid.hour, minute: mid.minute };
     setForm(next);
     run(next, settings);
   };
@@ -211,7 +216,7 @@ export default function App() {
   };
 
   const reset = () => {
-    setForm(defaultForm());
+    setForm(defaultForm(compat));
     setErrors([]);
     setOutcome(null);
     setSettings({ ...settings, correction: defaultSettings().correction });
@@ -281,7 +286,7 @@ export default function App() {
               setSettings={setSettings}
               compat={compat}
               errors={errors}
-              notes={[...(outcome?.norm.notes ?? []), ...(correctionNote && outcome?.norm.correction?.deltaMinutes ? [`출생지 보정: ${correctionNote}`] : [])]}
+              notes={[...(outcome?.norm.notes ?? []), ...(correctionNote && outcome?.norm.correction?.deltaMinutes ? [`${outcome?.norm.correction?.mode === 'korea' ? '시각 보정' : '출생지 보정'}: ${correctionNote}`] : [])]}
               onSubmit={() => run(form, settings)}
               onReset={reset}
             />

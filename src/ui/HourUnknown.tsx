@@ -51,7 +51,7 @@ export function HourUnknown({ norm, options, settings, onPick }: Props) {
             {rows.map((r) => (
               <tr key={r.b}>
                 <th scope="row">{BRANCHES_KO[r.b]}시</th>
-                <td>{timeRangeLabel(r.b)}</td>
+                <td>{timeRangeLabel(r.b, norm.clockShiftMinutes)}</td>
                 <td>{r.soul}</td>
                 <td>{r.body}</td>
                 <td>{r.five}</td>
