@@ -56,7 +56,8 @@ export const toBirthInput = (f: FormState): BirthInput => ({
   minute: f.hour === null ? 0 : f.minute,
   gender: f.gender,
   placeId: f.placeId,
-  customLon: f.placeId === CUSTOM_ID ? Number(f.customLon) : undefined,
+  // 빈 칸은 0°(그리니치)가 아니라 “입력 없음”이다. Number('') === 0 이라 따로 걸러야 한다.
+  customLon: f.placeId === CUSTOM_ID && f.customLon.trim() !== '' ? Number(f.customLon) : undefined,
   customTz: f.placeId === CUSTOM_ID ? 'Asia/Seoul' : undefined,
 });
 

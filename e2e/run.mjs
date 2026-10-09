@@ -255,6 +255,12 @@ await run('출생지 보정(T5): 서울 13:10 → 午시', async () => {
   check('서울 선택: 午시로 바뀌고 보정량이 표시된다', center.includes('오시') && center.includes('보정'), center);
   const notes = await page.locator('.notes').innerText();
   check('보정 근거 안내', notes.includes('서울') && notes.includes('126.98'), notes);
+  // 경도 직접 입력: 빈 칸을 0°(그리니치)로 받아들여 9시간이 어긋난 명반을 그리면 안 된다 — 안내를 띄운다
+  await page.locator('select').filter({ has: page.locator('option[value="custom"]') }).selectOption('custom');
+  await page.locator('input[type="number"][step="0.01"]').fill('');
+  await page.getByRole('button', { name: '명반 보기' }).click();
+  const lonErr = await page.locator('.errors').innerText();
+  check('경도 빈 칸: 숫자를 입력하라는 안내(0°로 계산하지 않음)', lonErr.includes('경도'), lonErr);
   await ctx.close();
 });
 
