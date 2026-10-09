@@ -48,7 +48,7 @@ export const PALACES: Record<PalaceKey, PalaceProfile> = {
   travel: {
     key: 'travel', topic: '집 밖의 활동과 바깥에서 받는 평가', focus: '바깥 활동',
     overview: '집 밖에서의 활동, 이동과 여행, 사회에서 받는 첫인상을 보는 칸입니다. 낯선 환경에서 어떻게 움직이는지가 드러납니다.',
-    saju: '사주에서는 이동과 변화를 뜻하는 {{역마}}를 봅니다.',
+    saju: '사주에서는 {{역마}}로 움직임이 많은지 적은지를 봅니다.',
   },
   friends: {
     key: 'friends', topic: '친구·동료·아랫사람과의 관계', focus: '인간관계',

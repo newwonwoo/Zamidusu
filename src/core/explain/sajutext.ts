@@ -219,7 +219,7 @@ export const sajuStarText = (key: string, h?: SajuHints): string | undefined => 
         ? `사주의 ${tj('천을귀인', '과/와')} 같은 자리입니다. 태어난 해의 윗글자가 ${stemLabel(h.yearStem)}이면 {{천을귀인}}은 ${branchLabel(CHEONEUL_BRANCHES[h.yearStem][0])}·${branchLabel(CHEONEUL_BRANCHES[h.yearStem][1])}입니다.`
         : `사주의 ${tj('천을귀인', '과/와')} 같은 자리입니다. 태어난 해의 윗글자를 기준으로 정합니다.`;
     case '文昌':
-      return `사주에도 같은 이름의 문창귀인이 있지만 정하는 기준이 다릅니다. 사주는 ${tj('일간', '을/를')} 기준으로 정합니다${h?.dayStem !== undefined ? `(이 사주는 ${stemLabel(h.dayStem)} → ${branchLabel(MUNCHANG_BRANCH[h.dayStem])})` : ''}. 자미두수는 태어난 시각을 기준으로 놓습니다.`;
+      return `사주에도 같은 이름의 문창귀인이 있지만 정하는 기준이 다릅니다. 사주는 ${tj('일간', '을/를')} 기준으로 정합니다.${h?.dayStem !== undefined ? ` 이 사주의 ${tj('일간', '은/는')} ${stemLabel(h.dayStem)}이고, 그 기준의 문창은 ${branchLabel(MUNCHANG_BRANCH[h.dayStem])}입니다.` : ''} 자미두수는 태어난 시각을 기준으로 놓습니다.`;
     case '華蓋':
       return `사주에도 같은 이름의 화개살이 있습니다. 화개살은 {{신살}}의 하나이며, 태어난 해와 날의 띠를 기준으로 정합니다.`;
     case '咸池':

@@ -48,6 +48,39 @@ const randomCharts = (n: number, seed: number): { chart: Chart; saju: SajuChart 
   });
 };
 
+/** 한 줄 안의 괄호 중첩 깊이 */
+const parenDepth = (line: string): number => {
+  let d = 0;
+  let max = 0;
+  for (const ch of line) {
+    if (ch === '(') max = Math.max(max, ++d);
+    else if (ch === ')') d--;
+  }
+  return max;
+};
+
+/** 글자쌍(2-gram) 집합 — 한글·숫자만 */
+const pairsOf = (t: string): Set<string> => {
+  const x = t.replace(/[^가-힣0-9]/g, '');
+  const out = new Set<string>();
+  for (let i = 0; i < x.length - 1; i++) out.add(x.slice(i, i + 2));
+  return out;
+};
+
+/** 한 문장 안의 {{용어}} 풀이가 같은 문장의 나머지와 같은 말을 되풀이하면 그 용어를 돌려준다 (풀이 글자쌍의 절반 이상이 문장에 이미 있음) */
+const glossRepeats = (sentence: string): string[] => {
+  const rest = pairsOf(sentence.replace(TERM_PATTERN, ''));
+  const out: string[] = [];
+  for (const term of termsIn(sentence)) {
+    const g = pairsOf(GLOSSARY[term]?.short ?? '');
+    if (g.size < 4) continue;
+    let same = 0;
+    for (const x of g) if (rest.has(x)) same++;
+    if (same / g.size >= 0.5) out.push(term);
+  }
+  return out;
+};
+
 const viewsOf = (chart: Chart, r: () => number): View[] => {
   const target = { date: { y: 2020 + Math.floor(r() * 12), m: 1 + Math.floor(r() * 12), d: 1 + Math.floor(r() * 28) }, timeIndex: Math.floor(r() * 12) };
   const list = decadalList(chart);
@@ -164,10 +197,37 @@ describe('V-19 문안 규칙: 분량 제한 없이 문장은 짧게·용어는 �
     expect(stat.p90).toBeLessThanOrEqual(48);
   });
 
+  it('용어 풀이가 같은 문장의 말을 되풀이하지 않는다(무작위 명반 60개 × 본명·대한 × 12칸)', () => {
+    const r = rng(5);
+    const bad = new Set<string>();
+    let sentences = 0;
+    for (const { chart, saju } of randomCharts(60, 5)) {
+      const views = [buildView(chart, 'natal', null), viewForDecade(chart, decadalList(chart)[2].startAge)];
+      for (const view of views) {
+        for (let b = 0; b < 12; b++) {
+          const p = explainPalace(chart, view, b, { saju, mode: r() < 0.5 ? '5' : '7' });
+          const texts = [p.overview, p.sajuLine, p.glance.headline, ...p.glance.points.map((x) => x.text), ...p.combos.map((c) => c.text), ...p.flowNotes,
+            ...[...p.stars, ...p.borrowed].flatMap((s) => s.blocks.map((blk) => blk.text))];
+          if (p.emptyNotice) texts.push(p.emptyNotice);
+          if (p.scopeNote) texts.push(p.scopeNote);
+          for (const t of texts) {
+            for (const sent of t.split(/(?<=[.!?])\s+/)) {
+              sentences++;
+              for (const term of glossRepeats(sent)) bad.add(`${term}: ${plainText(sent).slice(0, 70)}`);
+            }
+          }
+        }
+      }
+    }
+    expect(sentences).toBeGreaterThan(50000);
+    expect([...bad].slice(0, 8)).toEqual([]);
+  });
+
   it('용어 사전: 풀이는 60자 이하, 자기 이름 외에 다른 전문용어를 쓰지 않는다', () => {
     const bad: string[] = [];
     for (const [term, e] of Object.entries(GLOSSARY)) {
       if (len(e.short) > 60) bad.push(`${term}: 풀이 ${len(e.short)}자`);
+      if (/[()]/.test(e.short)) bad.push(`${term}: 짧은 풀이는 괄호 안에 쓰이므로 괄호를 쓰지 않는다 — “${e.short}”`);
       for (const txt of [e.short, e.more ?? '']) {
         const others = JARGON.filter((j) => j.term !== term && j.re.test(txt) && !term.includes(j.term) && !j.term.includes(term)).map((j) => j.term);
         // 풀이 안에서 다른 사전 용어를 쓰는 것은 막지 않되, ‘짧은 풀이’에서는 일상어만 쓴다
@@ -248,6 +308,23 @@ describe('V-20 결론(한눈에 보기)과 사주 대응 문장', () => {
     expect(palaces).toBe(120 * 6 * 12);
     expect(borrowedNotices).toBeGreaterThan(100);
     expect(bad.slice(0, 12)).toEqual([]);
+  });
+
+  it('용어 풀이를 붙여 읽어도 괄호 안에 괄호가 없다(무작위 명반 40개 × 6 운 × 12칸)', () => {
+    const r = rng(77);
+    const bad: string[] = [];
+    let palaces = 0;
+    for (const { chart, saju } of randomCharts(40, 11)) {
+      for (const view of viewsOf(chart, r)) {
+        for (let b = 0; b < 12; b++) {
+          palaces++;
+          const text = renderPalace(explainPalace(chart, view, b, { saju, mode: r() < 0.5 ? '5' : '7' }));
+          for (const line of text.split('\n')) if (parenDepth(line) > 1) bad.push(`${view.scope} ${b}: ${line.slice(0, 100)}`);
+        }
+      }
+    }
+    expect(palaces).toBe(40 * 6 * 12);
+    expect(bad.slice(0, 8)).toEqual([]);
   });
 
   it('결론은 시기를 따른다: 본명은 따로 말하지 않고 운 모드는 시기를 앞에 붙인다', () => {
