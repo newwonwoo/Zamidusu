@@ -86,3 +86,12 @@ export const termTime = (year: number, han: string): number => {
   if (!t) throw new Error(`절기 ${han} 없음`);
   return t.utcMs;
 };
+
+/**
+ * 입춘 기준의 해(年). 출생 '순간'이 그해 입춘 시각(UTC+8 절기표) 이전이면 전년이다.
+ * 날짜 단위가 아니라 분·초 단위로 비교하므로 입춘 당일의 전후도 정확하다.
+ */
+export const ipchunYearOf = (utcMs: number): number => {
+  const y = new Date(utcMs + BEIJING_OFFSET_MS).getUTCFullYear();
+  return utcMs < termTime(y, '立春') ? y - 1 : y;
+};

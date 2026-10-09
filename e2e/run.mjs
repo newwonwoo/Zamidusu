@@ -187,6 +187,30 @@ await run('사주 비교 탭(N-01~N-03)', async () => {
   await ctx.close();
 });
 
+// ── 4-2. 입춘 당일(절입 시각 전후) ──────────────────────────────────────────────
+// 엔진은 입춘 기준 연주를 날짜 단위로만 판정하므로, 빌드된 번들에서도 패치가 작동하는지(명반과 사주의 연주가 같은지) 확인한다.
+await run('입춘 기준: 절입 시각 전후의 연주(번들 검증)', async () => {
+  const { page, ctx } = await newPage();
+  const cases = [
+    // [쿼리, 기대 연주, 설명]
+    ['y=2024&m=2&d=4&h=16&mi=57', '癸卯', '2024 입춘 17:27 직전'],
+    ['y=2024&m=2&d=4&h=17&mi=57', '甲辰', '2024 입춘 17:27 직후'],
+    ['y=2024&m=2&d=4&h=0&mi=10', '癸卯', '2024-02-04 0시대(중국 표준시로는 전날)'],
+    ['y=2021&m=2&d=3&h=23&mi=30', '庚子', '2021 입춘 23:59 직전 — 23시대라 엔진 날짜가 하루 넘어감'],
+    ['y=2021&m=2&d=4&h=0&mi=30', '辛丑', '2021 입춘 23:59 직후'],
+  ];
+  for (const [query, year, label] of cases) {
+    await open(page, `g=M&cal=solar&${query}&yb=ipchun`);
+    const center = await page.locator('.center').innerText();
+    check(`${label}: 명반 연주 ${year}`, center.includes(`${year}년`) && center.includes('입춘 기준'), center);
+    await page.getByRole('tab', { name: '사주 비교' }).click();
+    const pillars = await page.locator('.pillars').innerText();
+    const notice = await page.locator('.notice').innerText();
+    check(`${label}: 사주 연주도 ${year}, 연주 불일치 경고 없음`, pillars.includes(year) && !notice.includes('연주가 다릅니다'), `${pillars.replace(/\s+/g, ' ')} / ${notice}`);
+  }
+  await ctx.close();
+});
+
 // ── 5. 입력 검증 ────────────────────────────────────────────────────────────────
 await run('입력: 음력·윤달·오류 안내', async () => {
   const { page, ctx } = await newPage();
