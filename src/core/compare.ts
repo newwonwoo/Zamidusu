@@ -73,6 +73,8 @@ const branchName = (b: number): string => `${BRANCHES_KO[b]}(${BRANCHES[b]})`;
 const gz = (stem: number, branch: number): string => STEMS[stem] + BRANCHES[branch];
 const positionOf = (chart: Chart, key: string): number => chart.palaces.find((p) => p.stars.some((s) => s.key === key))!.branch;
 
+const BASIS_KO: Record<'korea' | 'china', string> = { korea: '한국', china: '중국' };
+
 export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comparison => {
   const m = chart.meta;
   const ziYear = gz(m.yearStem, m.yearBranch);
@@ -86,7 +88,7 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
   // ── 달력 기준 알림 ──
   const civilYear = chart.norm.civil.y;
   const lichunMs = termTime(civilYear, '立春');
-  const newYear = lunarToSolar(lunar.year, 1, false, 1);
+  const newYear = lunarToSolar(lunar.year, 1, false, 1, chart.meta.lunarBasis);
   const lines: string[] = [];
   lines.push(`사주는 ${saju.year.ganzhi}년 ${saju.month.ganzhi}월, 자미두수는 ${ziYear}년 ${ziMonthLabel} ${lunar.day}일로 계산했습니다.`);
   let level: CalendarNotice['level'] = 'same';
@@ -107,6 +109,15 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
     lines.push('연주는 같지만, 사주의 월은 절기(월건)로, 자미두수의 월은 음력 날짜로 정해서 달 이름이 서로 맞지 않습니다. 정상적인 차이입니다.');
   } else {
     lines.push('이 생일은 두 체계의 연·월 기준이 우연히 같습니다.');
+  }
+  // 한국 음력과 중국 음력이 이 날짜를 다르게 세면 알려 준다(I-15)
+  const alt = chart.meta.altLunar;
+  if (alt) {
+    const label = (l: { month: number; leap: boolean; day: number }): string => `음력 ${l.leap ? '윤' : ''}${l.month}월 ${l.day}일`;
+    lines.push(
+      `달력 기준: 이 날짜를 ${BASIS_KO[chart.meta.lunarBasis]} 음력으로는 ${label(lunar)}, ${BASIS_KO[alt.basis]} 음력으로는 ${label(alt.lunar)}로 셉니다. ` +
+        '합삭(초하루를 정하는 순간)이 자정 무렵이면 한국 표준시와 중국 표준시의 날짜 경계가 달라 이렇게 갈립니다. 입력부의 “음력 기준”에서 바꿀 수 있습니다.',
+    );
   }
   const notice: CalendarNotice = {
     level,

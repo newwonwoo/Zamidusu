@@ -2,11 +2,11 @@ import { Solar } from '../src/core/lunarlib';
 import { independentChart, independentDecades } from '../src/core/independent';
 import type { LunarKey } from '../src/core/independent';
 import { MUTAGENS } from '../src/core/names';
-import { branchIndex, stemIndex } from '../src/core/ganzhi';
+import { BRANCHES, STEMS, branchIndex, mod, stemIndex } from '../src/core/ganzhi';
 import { DEFAULT_CHART_OPTIONS, buildChart } from '../src/core/chart';
 import type { Chart, ChartOptions } from '../src/core/chart';
-import { normalizeBirth } from '../src/core/time';
-import type { BirthInput, Gender, TimeSettings } from '../src/core/time';
+import { normalizeBirth, solarToLunar } from '../src/core/time';
+import type { BirthInput, Gender, LunarBasis, TimeSettings } from '../src/core/time';
 
 export const NO_CORRECTION: TimeSettings = { correction: 'none', lateZi: 'next', compat: false };
 
@@ -46,16 +46,32 @@ export const makeChart = (
 
 export const solarLunarOf = (y: number, m: number, d: number) => Solar.fromYmd(y, m, d).getLunar();
 
-/** 엔진 날짜에서 독립 구현의 입력(LunarKey)을 만든다 — 달력은 lunar-javascript 로 별도 계산 */
-export const keyOf = (y: number, m: number, d: number, hourBranch: number, basis: 'lunarNewYear' | 'ipchun'): LunarKey => {
+/**
+ * 엔진 날짜에서 독립 구현의 입력(LunarKey)을 만든다.
+ * 'china' 는 lunar-javascript 로 따로 구하고, 'korea' 는 한국 음력 표(검증은 tests/lunarkr.test.ts 가 한국천문연구원 자료와 대조)에서 구한다.
+ * 입춘 기준 연주는 날짜 단위(라이브러리 값)다 — 입춘 당일 전후는 tests/yearbasis.test.ts 가 따로 검증한다.
+ */
+export const keyOf = (
+  y: number, m: number, d: number, hourBranch: number, basis: 'lunarNewYear' | 'ipchun', calendar: LunarBasis = 'korea',
+): LunarKey => {
   const l = solarLunarOf(y, m, d);
-  const lunarMonth = Math.abs(l.getMonth());
-  const leap = l.getMonth() < 0;
-  const day = l.getDay();
+  let lunarYear: number;
+  let lunarMonth: number;
+  let leap: boolean;
+  let day: number;
+  if (calendar === 'korea') {
+    const k = solarToLunar({ y, m, d }, 'korea');
+    ({ year: lunarYear, month: lunarMonth, leap, day } = k);
+  } else {
+    lunarYear = l.getYear();
+    lunarMonth = Math.abs(l.getMonth());
+    leap = l.getMonth() < 0;
+    day = l.getDay();
+  }
   let month = lunarMonth;
   if (leap && day > 15) month = lunarMonth === 12 ? 1 : lunarMonth + 1; // 윤달 후반 보정(기본 설정)
-  const gan = basis === 'ipchun' ? l.getYearGanByLiChun() : l.getYearGan();
-  const zhi = basis === 'ipchun' ? l.getYearZhiByLiChun() : l.getYearZhi();
+  const gan = basis === 'ipchun' ? l.getYearGanByLiChun() : STEMS[mod(lunarYear - 4, 10)];
+  const zhi = basis === 'ipchun' ? l.getYearZhiByLiChun() : BRANCHES[mod(lunarYear - 4, 12)];
   return { yearStem: stemIndex(gan), yearBranch: branchIndex(zhi), month, day, hourBranch };
 };
 

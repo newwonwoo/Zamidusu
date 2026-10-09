@@ -2,10 +2,13 @@ import { useMemo, useState } from 'react';
 import { BRANCHES, BRANCHES_KO, STEMS, STEMS_KO } from '../core/ganzhi';
 import { CONSTRAINT_LABEL, reverseSearch, valueLabel, yearsFor } from '../core/reverse';
 import type { ConstraintKey, ReverseCandidate, ReverseConstraints } from '../core/reverse';
+import type { LunarBasis } from '../core/time';
 
 interface Props {
   /** 후보와 연도를 골라 명반을 만든다 */
   onUse: (c: ReverseCandidate, year: number) => void;
+  /** 음력 기준: 해당 달에 그 날짜가 있는 해(예: 30일)가 기준에 따라 달라진다 */
+  lunarBasis: LunarBasis;
 }
 
 const optionsOf = (key: ConstraintKey): { v: number; label: string }[] => {
@@ -26,8 +29,8 @@ const GROUPS: { title: string; keys: ConstraintKey[] }[] = [
   { title: '월·시·일에 따라 정해지는 별', keys: ['zuofu', 'youbi', 'wenchang', 'wenqu', 'santai', 'bazuo'] },
 ];
 
-function CandidateRow({ c, onUse }: { c: ReverseCandidate; onUse: Props['onUse'] }) {
-  const years = useMemo(() => c.yearBranches.flatMap((b) => yearsFor(c, b)).sort((a, b) => a - b), [c]);
+function CandidateRow({ c, onUse, lunarBasis }: { c: ReverseCandidate; onUse: Props['onUse']; lunarBasis: LunarBasis }) {
+  const years = useMemo(() => c.yearBranches.flatMap((b) => yearsFor(c, b, lunarBasis)).sort((a, b) => a - b), [c, lunarBasis]);
   const [year, setYear] = useState<number | null>(null);
   const chosen = year ?? years[0];
   return (
@@ -49,7 +52,7 @@ function CandidateRow({ c, onUse }: { c: ReverseCandidate; onUse: Props['onUse']
   );
 }
 
-export function ReverseInput({ onUse }: Props) {
+export function ReverseInput({ onUse, lunarBasis }: Props) {
   const [c, setC] = useState<ReverseConstraints>({});
   const result = useMemo(() => reverseSearch(c, 400), [c]);
   const set = (k: ConstraintKey, v: string) => {
@@ -94,7 +97,7 @@ export function ReverseInput({ onUse }: Props) {
           <>
             <p><b>가능한 조합 {result.count}개</b>{result.truncated ? ` (앞의 ${result.candidates.length}개만 표시)` : ''}{result.status === 'unique' ? ' — 하나로 정해졌습니다.' : ' — 값을 더 고르면 좁혀집니다.'}</p>
             <ol className="cands">
-              {result.candidates.slice(0, 20).map((cand, i) => <CandidateRow key={i} c={cand} onUse={onUse} />)}
+              {result.candidates.slice(0, 20).map((cand, i) => <CandidateRow key={i} c={cand} onUse={onUse} lunarBasis={lunarBasis} />)}
             </ol>
             <p className="hint">참고: 같은 달의 d일과 d+24일(예: 4일과 28일)은 명반이 똑같아 구분할 수 없습니다. 연지를 모르면 6가지 해가 모두 후보로 나옵니다.</p>
           </>

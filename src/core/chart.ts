@@ -3,7 +3,7 @@
 // iztro 의 config 는 전역 상태이므로 계산 직전마다 명시적으로 지정한다.
 
 import { astro } from 'iztro';
-import { setBirthYearOverride } from 'lunar-lite';
+import { setBirthYearOverride, setLunarProvider } from 'lunar-lite';
 import type { Brightness7, BrightnessMode } from './brightness';
 import { averageScore, parseBrightness } from './brightness';
 import { applyCompat, compatDecadalNames } from './compat';
@@ -14,9 +14,10 @@ import {
   MUTAGENS, PALACE_KEYS, SCOPE_KO, mutagenFromZh, palaceKeyFromZh, parseFlowStar, sortStars, starMeta,
 } from './names';
 import type { FlowStarMeta, Mutagen, PalaceKey, Scope, StarGroup, StarTone, TwelveSeries } from './names';
+import { KOREAN_LUNAR_PROVIDER } from './lunarkr';
 import { ipchunYearOf } from './solarterms';
-import { addDays, solarToLunar } from './time';
-import type { Gender, LateZiMode, LunarDate, NormalizedBirth, YMD } from './time';
+import { DEFAULT_LUNAR_BASIS, addDays, solarToLunar } from './time';
+import type { Gender, LateZiMode, LunarBasis, LunarDate, NormalizedBirth, YMD } from './time';
 
 export type YearBasis = 'lunarNewYear' | 'ipchun';
 
@@ -26,10 +27,15 @@ export interface ChartOptions {
   lateZi: LateZiMode;
   /** 윤달 후반(16일~)을 다음 달로 보정 */
   leapFix: boolean;
+  /** 음력 기준(I-15): 한국 음력 / 중국 음력. 호환 모드에서는 항상 중국 */
+  lunarBasis: LunarBasis;
   /** 원본 호환 모드(검증 전용) */
   compat: boolean;
 }
-export const DEFAULT_CHART_OPTIONS: ChartOptions = { yearBasis: 'lunarNewYear', lateZi: 'next', leapFix: true, compat: false };
+export const DEFAULT_CHART_OPTIONS: ChartOptions = { yearBasis: 'lunarNewYear', lateZi: 'next', leapFix: true, compat: false, lunarBasis: DEFAULT_LUNAR_BASIS };
+
+/** 이 옵션으로 실제 쓰는 음력 기준 */
+export const effectiveLunarBasis = (o: ChartOptions): LunarBasis => (o.compat ? 'china' : o.lunarBasis);
 
 export interface StarView {
   key: string;
@@ -68,7 +74,11 @@ export interface ChartMeta {
   gender: Gender;
   /** 엔진에 넘긴 양력일 'YYYY-M-D' */
   solarDate: string;
+  /** 쓰고 있는 음력 기준에 따른 음력 날짜 */
   lunar: LunarDate;
+  lunarBasis: LunarBasis;
+  /** 다른 음력 기준으로 세면 음력 날짜가 달라질 때 그 날짜(한국 음력과 중국 음력은 약 3.6% 의 날짜에서 다르다) */
+  altLunar: { basis: LunarBasis; lunar: LunarDate } | null;
   yearStem: number;
   yearBranch: number;
   /** 명반 연도 기준으로 나이 1세가 되는 양력 연도 */
@@ -113,6 +123,20 @@ const applyEngineConfig = (o: ChartOptions): void => {
 const ymdStr = (v: YMD): string => `${v.y}-${v.m}-${v.d}`;
 
 /**
+ * 음력 기준(I-15). 엔진(iztro → lunar-lite)은 음력을 중국 표준시 날짜로 센다. 한국 음력을 쓸 때는 계산하는 동안만
+ * 한국 음력 표를 달력 공급자로 끼워 넣는다(패치: patches/README.md). 끝나면 반드시 해제한다.
+ */
+const withCalendar = <T>(basis: LunarBasis, run: () => T): T => {
+  if (basis !== 'korea') return run();
+  setLunarProvider(KOREAN_LUNAR_PROVIDER);
+  try {
+    return run();
+  } finally {
+    setLunarProvider(null);
+  }
+};
+
+/**
  * 입춘 기준 연주(N-03).
  * 엔진(lunar-lite)은 입춘 기준의 연주를 '날짜' 단위로만 판정해서, 입춘 당일에는 절입 시각 전에 태어나도
  * 새해로 본다(한국 시계와 중국 표준시의 날짜 차이로 전후 하루도 어긋날 수 있다).
@@ -149,12 +173,21 @@ const baseYearOf = (solarYear: number, stem: number, branch: number): number => 
 
 export class ChartError extends Error {}
 
+/** 반대 음력 기준으로 세면 날짜가 달라지는지(달라질 때만 값을 돌려준다) */
+const altLunarOf = (v: YMD, basis: LunarBasis): { basis: LunarBasis; lunar: LunarDate } | null => {
+  const other: LunarBasis = basis === 'korea' ? 'china' : 'korea';
+  const a = solarToLunar(v, basis);
+  const b = solarToLunar(v, other);
+  return a.year === b.year && a.month === b.month && a.leap === b.leap && a.day === b.day ? null : { basis: other, lunar: b };
+};
+
 export const buildChart = (norm: NormalizedBirth, options: ChartOptions): Chart => {
   if (norm.timeIndex === null) throw new ChartError('출생 시각을 모르면 명반을 만들 수 없습니다. 시진을 선택해 주세요.');
   applyEngineConfig(options);
   const gender = norm.gender === 'M' ? '男' : '女';
   const timeIndex = norm.timeIndex;
-  const a = withBirthYear(norm, options, () => astro.bySolar(ymdStr(norm.engineDate), timeIndex, gender, options.leapFix, 'zh-TW'));
+  const basis = effectiveLunarBasis(options);
+  const a = withCalendar(basis, () => withBirthYear(norm, options, () => astro.bySolar(ymdStr(norm.engineDate), timeIndex, gender, options.leapFix, 'zh-TW')));
 
   const palaces: PalaceView[] = new Array(12);
   for (const p of a.palaces) {
@@ -193,7 +226,9 @@ export const buildChart = (norm: NormalizedBirth, options: ChartOptions): Chart 
   const meta: ChartMeta = {
     gender: norm.gender,
     solarDate: ymdStr(norm.engineDate),
-    lunar: solarToLunar(norm.engineDate),
+    lunar: solarToLunar(norm.engineDate, basis),
+    lunarBasis: basis,
+    altLunar: altLunarOf(norm.engineDate, basis),
     yearStem,
     yearBranch,
     baseYear: baseYearOf(norm.engineDate.y, yearStem, yearBranch),
@@ -328,7 +363,8 @@ export const buildView = (chart: Chart, scope: Scope, target: ViewTarget | null)
   const a = engineMap.get(chart);
   if (!a) throw new ChartError('엔진 정보를 찾을 수 없습니다(직렬화된 명반은 운 모드를 계산할 수 없습니다).');
   applyEngineConfig(chart.options);
-  const h = a.horoscope(ymdStr(target.date), target.timeIndex);
+  const basis = effectiveLunarBasis(chart.options);
+  const h = withCalendar(basis, () => a.horoscope(ymdStr(target.date), target.timeIndex));
   const item = h[SCOPE_FIELD[scope]];
 
   const names: PalaceKey[] = new Array(12);
@@ -359,7 +395,7 @@ export const buildView = (chart: Chart, scope: Scope, target: ViewTarget | null)
       ganzhi: `${item.heavenlyStem}${item.earthlyBranch}`,
       nominalAge: h.age.nominalAge,
       rangeLabel: null,
-      lunar: solarToLunar(target.date),
+      lunar: solarToLunar(target.date, basis),
     },
   };
 

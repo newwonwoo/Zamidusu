@@ -4,7 +4,8 @@ import { Solar } from './lunarlib';
 import { BRANCHES_KO, STEMS_KO } from './ganzhi';
 import { wallInZone } from './format';
 import { SOLAR_TERMS, solarTermsOfYear } from './solarterms';
-import { daysInSolarMonth } from './time';
+import { DEFAULT_LUNAR_BASIS, daysInSolarMonth, solarToLunar } from './time';
+import type { LunarBasis } from './time';
 
 export interface CalendarCell {
   y: number;
@@ -40,19 +41,18 @@ const termsByDay = (y: number, m: number, tz: string): Map<number, CalendarCell[
   return out;
 };
 
-export const buildMonth = (y: number, m: number, tz = 'Asia/Seoul'): CalendarMonth => {
+export const buildMonth = (y: number, m: number, tz = 'Asia/Seoul', basis: LunarBasis = DEFAULT_LUNAR_BASIS): CalendarMonth => {
   const terms = termsByDay(y, m, tz);
   const days = daysInSolarMonth(y, m);
   const cells: CalendarCell[] = [];
   for (let d = 1; d <= days; d++) {
     const solar = Solar.fromYmd(y, m, d);
-    const lunar = solar.getLunar();
-    const gz: string = lunar.getDayInGanZhi();
-    const lm = lunar.getMonth();
+    const gz: string = solar.getLunar().getDayInGanZhi();
+    const lunar = solarToLunar({ y, m, d }, basis);
     cells.push({
       y, m, d,
       weekday: new Date(Date.UTC(y, m - 1, d)).getUTCDay(),
-      lunar: { month: Math.abs(lm), day: lunar.getDay(), leap: lm < 0 },
+      lunar: { month: lunar.month, day: lunar.day, leap: lunar.leap },
       ganzhi: gz,
       ganzhiKo: STEMS_KO[['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'].indexOf(gz[0])] +
         BRANCHES_KO[['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'].indexOf(gz[1])],

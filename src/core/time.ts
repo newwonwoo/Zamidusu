@@ -2,6 +2,7 @@
 // 원장 개선 항목: I-06(보정표 오류) · I-07(보정 무효) · I-08(입력 범위) · U-06(표준시 이력) · U-07(자시/윤달).
 
 import { Solar, Lunar } from './lunarlib';
+import { leapMonthOfKr, lunarMonthDaysKr, lunarToSolarKr, solarToLunarKr } from './lunarkr';
 import { ABROAD_ID, CUSTOM_ID, KOREA_TZ, STANDARD_ID, placeById } from './place';
 
 export interface Wall {
@@ -20,6 +21,12 @@ export interface YMD {
 export type Gender = 'M' | 'F';
 export type CorrectionMode = 'none' | 'lmt' | 'true';
 export type LateZiMode = 'next' | 'current';
+/**
+ * 음력 기준. 한국 음력은 한국 표준시(UTC+9) 날짜로, 중국 음력(iztro·lunar-javascript 계열)은 중국 표준시(UTC+8) 날짜로 센다.
+ * 1900~2050년 중 3.59% 의 날짜에서 음력 일이 하루 다르고, 2012·2017년처럼 윤달이 다른 달에 놓이는 해도 있다(I-15).
+ */
+export type LunarBasis = 'korea' | 'china';
+export const DEFAULT_LUNAR_BASIS: LunarBasis = 'korea';
 
 export interface BirthInput {
   calendar: 'solar' | 'lunar';
@@ -42,9 +49,14 @@ export interface TimeSettings {
   correction: CorrectionMode;
   lateZi: LateZiMode;
   compat: boolean;
+  /** 음력 기준. 생략하면 한국. 호환 모드에서는 항상 중국(사이트가 그렇게 계산하는 것으로 추정) */
+  lunarBasis?: LunarBasis;
 }
 
-export const DEFAULT_TIME_SETTINGS: TimeSettings = { correction: 'true', lateZi: 'next', compat: false };
+export const DEFAULT_TIME_SETTINGS: TimeSettings = { correction: 'true', lateZi: 'next', compat: false, lunarBasis: DEFAULT_LUNAR_BASIS };
+
+/** 설정에서 실제로 쓸 음력 기준 */
+export const lunarBasisOf = (s: Pick<TimeSettings, 'compat' | 'lunarBasis'>): LunarBasis => (s.compat ? 'china' : (s.lunarBasis ?? DEFAULT_LUNAR_BASIS));
 
 /** 입력 가능 범위(설계서 4-2). 하한은 엔진의 음력 표 시작(1900-01-31) 다음 날. */
 export const MIN_DATE: YMD = { y: 1900, m: 2, d: 1 };
@@ -75,18 +87,26 @@ export interface LunarDate {
   day: number;
 }
 
-export const solarToLunar = (v: YMD): LunarDate => {
+/** 한국 음력 표가 다루는 음력 연도(표 밖이면 중국 음력 계산으로 넘어간다) */
+const inKoreanTable = (year: number): boolean => year >= 1900 && year <= 2100;
+
+export const solarToLunar = (v: YMD, basis: LunarBasis = DEFAULT_LUNAR_BASIS): LunarDate => {
+  if (basis === 'korea') {
+    const k = solarToLunarKr(v.y, v.m, v.d);
+    if (k) return { year: k.year, month: k.month, leap: k.leap, day: k.day };
+  }
   const l = Solar.fromYmd(v.y, v.m, v.d).getLunar();
   const lm = l.getMonth();
   return { year: l.getYear(), month: Math.abs(lm), leap: lm < 0, day: l.getDay() };
 };
 
 /** 존재하지 않는 음력 날짜(없는 윤달, 29일뿐인 달의 30일 등)는 null */
-export const lunarToSolar = (year: number, month: number, leap: boolean, day: number): YMD | null => {
+export const lunarToSolar = (year: number, month: number, leap: boolean, day: number, basis: LunarBasis = DEFAULT_LUNAR_BASIS): YMD | null => {
+  if (basis === 'korea' && inKoreanTable(year)) return lunarToSolarKr(year, month, leap, day);
   try {
     const s = Lunar.fromYmd(year, leap ? -month : month, day).getSolar();
     const out = { y: s.getYear(), m: s.getMonth(), d: s.getDay() };
-    const back = solarToLunar(out);
+    const back = solarToLunar(out, 'china');
     if (back.year !== year || back.month !== month || back.leap !== leap || back.day !== day) return null;
     return out;
   } catch {
@@ -95,14 +115,16 @@ export const lunarToSolar = (year: number, month: number, leap: boolean, day: nu
 };
 
 /** 음력 연·월(윤달 여부)의 일수(29 또는 30). 없는 달이면 0 */
-export const lunarMonthDays = (year: number, month: number, leap: boolean): number => {
-  if (!lunarToSolar(year, month, leap, 1)) return 0;
-  return lunarToSolar(year, month, leap, 30) ? 30 : 29;
+export const lunarMonthDays = (year: number, month: number, leap: boolean, basis: LunarBasis = DEFAULT_LUNAR_BASIS): number => {
+  if (basis === 'korea' && inKoreanTable(year)) return lunarMonthDaysKr(year, month, leap);
+  if (!lunarToSolar(year, month, leap, 1, 'china')) return 0;
+  return lunarToSolar(year, month, leap, 30, 'china') ? 30 : 29;
 };
 
 /** 그 해에 윤달이 있으면 윤달의 월 번호, 없으면 0 */
-export const leapMonthOfLunarYear = (year: number): number => {
-  for (let m = 1; m <= 12; m++) if (lunarToSolar(year, m, true, 1)) return m;
+export const leapMonthOfLunarYear = (year: number, basis: LunarBasis = DEFAULT_LUNAR_BASIS): number => {
+  if (basis === 'korea' && inKoreanTable(year)) return leapMonthOfKr(year);
+  for (let m = 1; m <= 12; m++) if (lunarToSolar(year, m, true, 1, 'china')) return m;
   return 0;
 };
 
@@ -291,6 +313,8 @@ export interface NormalizedBirth {
   shiftedDay: boolean;
   /** 사용자가 음력으로 입력했는가 */
   inputCalendar: 'solar' | 'lunar';
+  /** 음력 입력의 변환과 명반의 음력 날짜에 쓴 음력 기준 */
+  lunarBasis: LunarBasis;
   lunarInput?: LunarDate;
   notes: string[];
 }
@@ -301,6 +325,7 @@ export const normalizeBirth = (input: BirthInput, settings: TimeSettings): Norma
   const errors: string[] = [];
   const notes: string[] = [];
   const [yMin, yMax] = settings.compat ? COMPAT_YEAR_RANGE : [MIN_DATE.y, MAX_DATE.y];
+  const basis = lunarBasisOf(settings);
 
   if (!Number.isInteger(input.year) || input.year < yMin || input.year > yMax) {
     errors.push(`출생 연도는 ${yMin}~${yMax}년만 입력할 수 있습니다.`);
@@ -317,11 +342,11 @@ export const normalizeBirth = (input: BirthInput, settings: TimeSettings): Norma
   let solar: YMD;
   let lunarInput: LunarDate | undefined;
   if (input.calendar === 'lunar') {
-    const s = lunarToSolar(input.year, input.month, input.leap, input.day);
+    const s = lunarToSolar(input.year, input.month, input.leap, input.day, basis);
     if (!s) {
-      const days = lunarMonthDays(input.year, input.month, input.leap);
+      const days = lunarMonthDays(input.year, input.month, input.leap, basis);
       if (days === 0) {
-        const leapMonth = leapMonthOfLunarYear(input.year);
+        const leapMonth = leapMonthOfLunarYear(input.year, basis);
         errors.push(
           input.leap
             ? `음력 ${input.year}년에는 윤${input.month}월이 없습니다.${leapMonth ? ` (이 해의 윤달은 윤${leapMonth}월)` : ' (이 해에는 윤달이 없습니다)'}`
@@ -356,7 +381,7 @@ export const normalizeBirth = (input: BirthInput, settings: TimeSettings): Norma
       ok: true,
       value: {
         gender: input.gender, tz, instantUtcMs, civil, hourKnown: false, corrected: null, correction: null, engineDate: solar, timeIndex: null,
-        lateZi: false, shiftedDay: false, inputCalendar: input.calendar, lunarInput, notes,
+        lateZi: false, shiftedDay: false, inputCalendar: input.calendar, lunarBasis: basis, lunarInput, notes,
       },
     };
   }
@@ -381,7 +406,7 @@ export const normalizeBirth = (input: BirthInput, settings: TimeSettings): Norma
     ok: true,
     value: {
       gender: input.gender, tz, instantUtcMs, civil, hourKnown: true, corrected, correction: detail, engineDate,
-      timeIndex: hourToBranch(corrected.h), lateZi, shiftedDay, inputCalendar: input.calendar, lunarInput, notes,
+      timeIndex: hourToBranch(corrected.h), lateZi, shiftedDay, inputCalendar: input.calendar, lunarBasis: basis, lunarInput, notes,
     },
   };
 };

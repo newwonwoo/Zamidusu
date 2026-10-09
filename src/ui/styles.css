@@ -240,6 +240,7 @@ select, input[type='number'], input[type='date'] {
 .cell.scope-life { box-shadow: inset 0 0 0 1.5px var(--quan); }
 .cell-head { display: flex; align-items: baseline; gap: 4px; justify-content: space-between; }
 .gz { color: var(--ink-2); font-size: 0.9em; }
+.alt-lunar { display: block; color: var(--ink-2); }
 .pname { font-weight: 700; color: var(--accent); margin-left: auto; text-align: right; }
 .natalname { display: block; font-weight: 400; color: var(--ink-2); font-size: 0.78em; }
 .bodymark { background: var(--accent); color: var(--on-accent); border-radius: 4px; padding: 0 3px; font-size: 0.78em; }

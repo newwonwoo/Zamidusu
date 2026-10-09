@@ -18,6 +18,8 @@ const normalize = (buf) => Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n
 const sha256 = (buf) => crypto.createHash('sha256').update(normalize(buf)).digest('hex');
 
 let failed = false;
+/** 1단계: 모든 파일을 먼저 점검한다. 하나라도 어긋나면 아무것도 쓰지 않는다(일부만 패치된 상태를 남기지 않기 위해) */
+const writes = [];
 for (const patch of manifest.patches) {
   const pkgDir = path.join(root, 'node_modules', patch.package);
   const pkgJson = path.join(pkgDir, 'package.json');
@@ -44,12 +46,21 @@ for (const patch of manifest.patches) {
         failed = true;
         continue;
       }
-      fs.writeFileSync(target, next);
-      console.log(`[patches] ${patch.package}/${f.target}: 적용함 (${patch.reason})`);
+      writes.push({ target, next, label: `${patch.package}/${f.target}`, reason: patch.reason });
     } else {
       console.error(`[patches] ${patch.package}/${f.target}: 원본도 패치본도 아닙니다(해시 ${current.slice(0, 12)}…). 직접 수정했거나 버전이 다른 파일입니다.`);
       failed = true;
     }
   }
+}
+/** 2단계: 문제가 없을 때만 쓴다 */
+if (!failed) {
+  for (const w of writes) {
+    fs.writeFileSync(w.target, w.next);
+    console.log(`[patches] ${w.label}: 적용함`);
+  }
+  if (writes.length) console.log(`[patches] 이유: ${manifest.patches[0].reason}`);
+} else if (writes.length) {
+  console.error('[patches] 일부 파일에 문제가 있어 아무것도 적용하지 않았습니다.');
 }
 process.exit(failed ? 1 : 0);

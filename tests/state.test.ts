@@ -22,6 +22,7 @@ describe('공유 링크', () => {
         placeId: pick(['standard', '특별·광역시-서울', '제주-제주', CUSTOM_ID]),
         customLon: pick(['127.5', '-73.9', '139.69']),
         yearBasis: pick(['lunarNewYear', 'ipchun'] as const),
+        lunarBasis: pick(['korea', 'china'] as const),
       };
       if (f.calendar === 'lunar') f.leap = r() < 0.3;
       const back = formFromLocation({ search: '', hash: `#${formToQuery(f)}` });
@@ -34,6 +35,7 @@ describe('공유 링크', () => {
       expect(back.form.minute).toBe(f.hour === null ? 0 : f.minute);
       expect(back.form.placeId).toBe(f.placeId);
       expect(back.form.yearBasis).toBe(f.yearBasis);
+      expect(back.form.lunarBasis).toBe(f.lunarBasis);
       if (f.placeId === CUSTOM_ID) expect(back.form.customLon).toBe(f.customLon);
     }
   });

@@ -8,7 +8,7 @@
  var constants_1 = require("./constants");
  var convertor_1 = require("./convertor");
  var lunar_typescript_1 = require("lunar-typescript");
-@@ -20,6 +20,20 @@
+@@ -20,6 +20,32 @@
  };
  exports.getHeavenlyStemAndEarthlyBranchByLunarDate = getHeavenlyStemAndEarthlyBranchByLunarDate;
  /**
@@ -26,12 +26,34 @@
 +};
 +exports.setBirthYearOverride = setBirthYearOverride;
 +/**
++ * [zamidusu patch] 달력 공급자(convertor.setLunarProvider)가 준 음력 값을, 월주 계산(calculateMonthlyGanZhi)이
++ * 읽는 lunar 객체 모양으로 감싼다. 절기 기준 월간지는 달력과 무관하므로 원래 객체에 맡긴다.
++ */
++var lunarLikeOf = function (provided, lunar) {
++    return {
++        getMonth: function () { return provided.isLeap ? 0 - provided.lunarMonth : provided.lunarMonth; },
++        getDay: function () { return provided.lunarDay; },
++        getMonthGanExact: function () { return lunar.getMonthGanExact(); },
++        getMonthZhiExact: function () { return lunar.getMonthZhiExact(); },
++    };
++};
++/**
   * 将阳历转化为干支纪年
   *
   * @param dateStr 公历日期 YYYY-MM-DD
-@@ -37,6 +51,14 @@
+@@ -31,18 +57,28 @@
+     var _a = (0, convertor_1.normalizeDateStr)(dateStr), year = _a[0], month = _a[1], date = _a[2];
+     var solar = lunar_typescript_1.Solar.fromYmdHms(year, month, date, Math.max(timeIndex * 2 - 1, 0), 30, 0);
+     var lunar = solar.getLunar();
++    var provider = (0, convertor_1.getLunarProvider)();
++    var provided = provider ? provider.toLunar(year, month, date) : null;
+     var yearlyGan = (options === null || options === void 0 ? void 0 : options.year) === "normal"
+-        ? lunar.getYearGan()
++        ? (provided ? constants_1.HEAVENLY_STEMS[(0, utils_1.fixIndex)(provided.lunarYear - 4, 10)] : lunar.getYearGan())
+         : lunar.getYearGanByLiChun();
      var yearlyZhi = (options === null || options === void 0 ? void 0 : options.year) === "normal"
-         ? lunar.getYearZhi()
+-        ? lunar.getYearZhi()
++        ? (provided ? constants_1.EARTHLY_BRANCHES[(0, utils_1.fixIndex)(provided.lunarYear - 4, 12)] : lunar.getYearZhi())
          : lunar.getYearZhiByLiChun();
 +    if (birthYearOverride &&
 +        (options === null || options === void 0 ? void 0 : options.year) !== "normal" &&
@@ -44,6 +66,13 @@
      var yearly = [
          yearlyGan,
          yearlyZhi,
+     ];
+     // 如果是初一换干支的话需要自己起五虎遁
+-    var monthly = calculateMonthlyGanZhi(yearlyGan, lunar, options === null || options === void 0 ? void 0 : options.month);
++    var monthly = calculateMonthlyGanZhi(yearlyGan, provided ? lunarLikeOf(provided, lunar) : lunar, options === null || options === void 0 ? void 0 : options.month);
+     var daily = [
+         lunar.getDayGanExact(),
+         lunar.getDayZhiExact(),
 --- a/lib/ganzhi.d.ts
 +++ b/lib/ganzhi.d.ts
 @@ -16,3 +16,14 @@
@@ -61,3 +90,125 @@
 +    gan: string;
 +    zhi: string;
 +} | null) => void;
+--- a/lib/convertor.js
++++ b/lib/convertor.js
+@@ -1,6 +1,6 @@
+ "use strict";
+ Object.defineProperty(exports, "__esModule", { value: true });
+-exports.lunar2solar = exports.solar2lunar = exports.normalizeDateStr = void 0;
++exports.getLunarProvider = exports.setLunarProvider = exports.lunar2solar = exports.solar2lunar = exports.normalizeDateStr = void 0;
+ var lunar_typescript_1 = require("lunar-typescript");
+ /**
+  * 将日期字符串 YYYY-MM-DD 或者一个 Date 对象分割为 [YYYY, M, D, H, m, s]
+@@ -30,6 +30,26 @@
+ };
+ exports.normalizeDateStr = normalizeDateStr;
+ /**
++ * [zamidusu patch] 음력 달력 공급자.
++ *
++ * 기본 계산(lunar-typescript)은 음력을 중국 표준시(UTC+8) 날짜로 센다. 한국 음력은 한국 표준시(UTC+9) 날짜로 세므로
++ * 1900~2050년 중 3.6% 의 날짜에서 하루 다르고, 윤달이 다른 달에 놓이는 해도 있다(2012·2017 등).
++ * 호출하는 쪽이 공급자를 지정하면 solar2lunar·lunar2solar·getTotalDaysOfLunarMonth·음력 연 기준 연주가 그 값을 쓴다.
++ * 공급자가 null 을 돌려주는 날짜(자기 표 밖)는 기본 계산으로 넘어간다. 계산 직전에 지정하고 끝나면 반드시 null 로 되돌려야 한다.
++ *
++ * provider.toLunar(year, month, day) → { lunarYear, lunarMonth, lunarDay, isLeap, monthDays } | null
++ * provider.toSolar(lunarYear, lunarMonth, lunarDay, isLeap) → { solarYear, solarMonth, solarDay } | null
++ */
++var lunarProvider = null;
++var setLunarProvider = function (provider) {
++    lunarProvider = provider;
++};
++exports.setLunarProvider = setLunarProvider;
++var getLunarProvider = function () {
++    return lunarProvider;
++};
++exports.getLunarProvider = getLunarProvider;
++/**
+  * 公历转农历，年份需要在【1900~2100】之间，并且日期必须在1900-1-31之后
+  *
+  * @param dateStr 公历日期 YYYY-MM-DD格式的字符串或者Date对象
+@@ -37,6 +57,21 @@
+  */
+ var solar2lunar = function (dateStr) {
+     var _a = (0, exports.normalizeDateStr)(dateStr), year = _a[0], month = _a[1], day = _a[2];
++    var provided = lunarProvider ? lunarProvider.toLunar(year, month, day) : null;
++    if (provided) {
++        return {
++            lunarYear: provided.lunarYear,
++            lunarMonth: provided.lunarMonth,
++            lunarDay: provided.lunarDay,
++            isLeap: provided.isLeap,
++            toString: function (toCnStr) {
++                if (toCnStr) {
++                    return "".concat(provided.lunarYear, "\u5E74").concat(provided.isLeap ? "\u95F0" : "").concat(provided.lunarMonth, "\u6708").concat(provided.lunarDay, "\u65E5");
++                }
++                return "".concat(provided.lunarYear, "-").concat(provided.lunarMonth, "-").concat(provided.lunarDay);
++            },
++        };
++    }
+     var solar = lunar_typescript_1.Solar.fromYmd(year, month, day);
+     var lunar = solar.getLunar();
+     var lunarYear = lunar.getYear();
+@@ -66,6 +101,19 @@
+  */
+ var lunar2solar = function (dateStr, isLeapMonth) {
+     var _a = (0, exports.normalizeDateStr)(dateStr), year = _a[0], month = _a[1], day = _a[2];
++    var provided = lunarProvider
++        ? lunarProvider.toSolar(year, month, day, !!isLeapMonth) || (isLeapMonth ? lunarProvider.toSolar(year, month, day, false) : null)
++        : null;
++    if (provided) {
++        return {
++            solarYear: provided.solarYear,
++            solarMonth: provided.solarMonth,
++            solarDay: provided.solarDay,
++            toString: function () {
++                return "".concat(provided.solarYear, "-").concat(provided.solarMonth, "-").concat(provided.solarDay);
++            },
++        };
++    }
+     var lunar = lunar_typescript_1.Lunar.fromYmd(year, month, day);
+     var lunarYear = lunar_typescript_1.LunarYear.fromYear(lunar.getYear());
+     var leapMonth = lunarYear.getLeapMonth();
+--- a/lib/convertor.d.ts
++++ b/lib/convertor.d.ts
+@@ -24,3 +24,23 @@
+  * @returns SolarDate
+  */
+ export declare const lunar2solar: (dateStr: string, isLeapMonth?: boolean) => SolarDate;
++/**
++ * [zamidusu patch] 음력 달력 공급자. 지정하면 solar2lunar·lunar2solar·getTotalDaysOfLunarMonth·음력 연 기준 연주가 공급자의 값을 쓴다.
++ * 공급자가 null 을 돌려주는 날짜는 기본 계산(중국 표준시)으로 넘어간다. 계산이 끝나면 null 로 해제한다.
++ */
++export interface LunarProvider {
++    toLunar(year: number, month: number, day: number): {
++        lunarYear: number;
++        lunarMonth: number;
++        lunarDay: number;
++        isLeap: boolean;
++        monthDays: number;
++    } | null;
++    toSolar(lunarYear: number, lunarMonth: number, lunarDay: number, isLeap: boolean): {
++        solarYear: number;
++        solarMonth: number;
++        solarDay: number;
++    } | null;
++}
++export declare const setLunarProvider: (provider: LunarProvider | null) => void;
++export declare const getLunarProvider: () => LunarProvider | null;
+--- a/lib/misc.js
++++ b/lib/misc.js
+@@ -34,6 +34,14 @@
+  */
+ var getTotalDaysOfLunarMonth = function (solarDateStr) {
+     var _a;
++    var provider = (0, convertor_1.getLunarProvider)();
++    if (provider) {
++        var n = (0, convertor_1.normalizeDateStr)(solarDateStr);
++        var provided = provider.toLunar(n[0], n[1], n[2]);
++        if (provided) {
++            return provided.monthDays;
++        }
++    }
+     var _b = (0, convertor_1.solar2lunar)(solarDateStr), lunarYear = _b.lunarYear, lunarMonth = _b.lunarMonth, isLeap = _b.isLeap;
+     var month = lunar_typescript_1.LunarMonth.fromYm(lunarYear, isLeap ? 0 - lunarMonth : lunarMonth);
+     return (_a = month === null || month === void 0 ? void 0 : month.getDayCount()) !== null && _a !== void 0 ? _a : 0;

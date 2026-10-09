@@ -112,6 +112,17 @@ export function InputPanel({ form, setForm, settings, setSettings, compat, error
         </div>
       </fieldset>
 
+      {!compat && (
+        <fieldset>
+          <legend>음력 기준</legend>
+          <div className="radios">
+            <label><input type="radio" name="lunarbasis" checked={form.lunarBasis === 'korea'} onChange={() => set('lunarBasis', 'korea')} /> 한국 (기본)</label>
+            <label><input type="radio" name="lunarbasis" checked={form.lunarBasis === 'china'} onChange={() => set('lunarBasis', 'china')} /> 중국</label>
+          </div>
+          <p className="hint">한국 만세력과 같은 음력입니다. 초하루를 정하는 순간이 자정 무렵이면 한국·중국 음력이 하루 달라(1900~2050년 중 약 3.6%의 날짜) 명반이 달라질 수 있습니다. 중국 기준은 iztro 등 해외 도구와 같은 값입니다.</p>
+        </fieldset>
+      )}
+
       <details className="advanced">
         <summary>고급 설정</summary>
         <fieldset>

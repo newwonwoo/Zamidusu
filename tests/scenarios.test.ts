@@ -134,6 +134,11 @@ const SCENARIOS: Scenario[] = [
   { id: 'T5-서울', label: '1990-03-10 남 13:10 · 서울(진태양시)', form: { year: 1990, month: 3, day: 10, hour: 13, minute: 10, gender: 'M', placeId: SEOUL }, settings: { correction: 'true' } },
   { id: 'T6', label: '1990-01-30 남 12시', form: { year: 1990, month: 1, day: 30, hour: 12, gender: 'M' } },
   { id: 'T6-입춘', label: '1990-01-30 남 12시 · 입춘 기준', form: { year: 1990, month: 1, day: 30, hour: 12, gender: 'M', yearBasis: 'ipchun' } },
+  // 한국·중국 음력이 다른 날(I-15): 같은 생일시가 음력 기준에 따라 다른 명반이 된다
+  { id: 'K1-한국', label: '2023-05-19 남 12시 · 한국 음력(3월 30일)', form: { year: 2023, month: 5, day: 19, hour: 12, gender: 'M', lunarBasis: 'korea' } },
+  { id: 'K1-중국', label: '2023-05-19 남 12시 · 중국 음력(4월 1일)', form: { year: 2023, month: 5, day: 19, hour: 12, gender: 'M', lunarBasis: 'china' } },
+  { id: 'K2-한국', label: '2012-06-08 여 10시 · 한국 음력(4월 19일)', form: { year: 2012, month: 6, day: 8, hour: 10, gender: 'F', lunarBasis: 'korea' } },
+  { id: 'K2-중국', label: '2012-06-08 여 10시 · 중국 음력(윤4월 19일)', form: { year: 2012, month: 6, day: 8, hour: 10, gender: 'F', lunarBasis: 'china' } },
 ];
 
 const table: string[][] = [];
@@ -150,7 +155,7 @@ describe('원장 시험 입력 T1~T6 (끝에서 끝까지)', () => {
       const basis = f.yearBasis === 'ipchun' ? 'ipchun' : 'lunarNewYear';
       const e = o.norm.engineDate;
       const hb = o.norm.timeIndex as number;
-      const diffs = compareWithIndependent(sc.id, o.chart, keyOf(e.y, e.m, e.d, hb, basis), f.gender);
+      const diffs = compareWithIndependent(sc.id, o.chart, keyOf(e.y, e.m, e.d, hb, basis, f.lunarBasis), f.gender);
       expect(diffs).toEqual([]);
 
       // 사주 4기둥 ↔ 다른 라이브러리 (23시대 제외)
@@ -163,7 +168,7 @@ describe('원장 시험 입력 T1~T6 (끝에서 끝까지)', () => {
       const ziwei = o.chart.palaces.find((p) => p.stars.some((s) => s.key === '紫微'))!.branch;
       table.push([
         sc.id, sc.label,
-        `${m.lunar.year}-${m.lunar.leap ? '윤' : ''}${m.lunar.month}-${m.lunar.day}`,
+        `${m.lunar.year}-${m.lunar.leap ? '윤' : ''}${m.lunar.month}-${m.lunar.day} (${m.lunarBasis === 'korea' ? '한국' : '중국'})`,
         `${STEMS[m.yearStem]}${BRANCHES[m.yearBranch]}`,
         m.fiveElements.hanja,
         `${BRANCHES[m.soulBranch]}/${BRANCHES[m.bodyBranch]}`,
@@ -193,6 +198,25 @@ describe('원장 시험 입력 T1~T6 (끝에서 끝까지)', () => {
       bad.push(...structuralProblems(o.chart).map((x) => `${y}: ${x}`));
     }
     expect(bad).toEqual([]);
+  });
+
+  it('T7(중국 음력 기준): 같은 91건이 중국 음력으로도 독립 구현과 일치한다', () => {
+    const bad: string[] = [];
+    for (let y = 1930; y <= 2020; y++) {
+      const o = run({ year: y, month: 7, day: 1, hour: 12, gender: y % 2 ? 'M' : 'F', lunarBasis: 'china' });
+      const e = o.norm.engineDate;
+      bad.push(...compareWithIndependent(`T7c-${y}`, o.chart, keyOf(e.y, e.m, e.d, 6, 'lunarNewYear', 'china'), o.chart.meta.gender));
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('음력 입력은 선택한 음력 기준으로 양력으로 바뀐다: 2012년 윤3월 1일은 한국에만 있고(2012-04-21), 윤4월 1일은 중국에만 있다(2012-05-21)', () => {
+    const k = run({ calendar: 'lunar', leap: true, year: 2012, month: 3, day: 1, hour: 12, lunarBasis: 'korea' });
+    expect(k.chart.meta.solarDate).toBe('2012-4-21');
+    expect(errorsOf({ calendar: 'lunar', leap: true, year: 2012, month: 3, day: 1, hour: 12, lunarBasis: 'china' }).join(' ')).toMatch(/윤3월이 없습니다.*윤4월/);
+    const c = run({ calendar: 'lunar', leap: true, year: 2012, month: 4, day: 1, hour: 12, lunarBasis: 'china' });
+    expect(c.chart.meta.solarDate).toBe('2012-5-21');
+    expect(errorsOf({ calendar: 'lunar', leap: true, year: 2012, month: 4, day: 1, hour: 12, lunarBasis: 'korea' }).join(' ')).toMatch(/윤4월이 없습니다.*윤3월/);
   });
 
   it('음력 입력(1990-1-4)은 양력 1990-01-30 입력과 같은 명반을 만든다', () => {
@@ -352,7 +376,7 @@ describe('적대적 입력', () => {
 if (process.env.WRITE_SCENARIOS) {
   describe('결과표 쓰기', () => {
     it('docs/generated/scenarios.md', () => {
-      const head = ['번호', '입력', '음력(연-월-일)', '연주', '오행국', '명궁/신궁', '자미성', '대한', '사주 4주(년 월 일 시)', '독립 구현 불일치'];
+      const head = ['번호', '입력', '음력(연-월-일, 기준)', '연주', '오행국', '명궁/신궁', '자미성', '대한', '사주 4주(년 월 일 시)', '독립 구현 불일치'];
       const lines = [
         '# 시나리오 실행 결과표 (자동 생성)',
         '',

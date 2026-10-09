@@ -4,19 +4,37 @@
     {
       "package": "lunar-lite",
       "version": "0.2.8",
-      "reason": "입춘 기준 연주를 날짜가 아니라 출생 순간으로 판정하기 위한 setBirthYearOverride 추가 (src/core/chart.ts 가 사용)",
+      "reason": "① 입춘 기준 연주를 출생 순간으로 판정(setBirthYearOverride) ② 음력 달력 공급자(setLunarProvider)로 한국 음력을 끼워 넣음 — src/core/chart.ts 가 사용",
       "files": [
         {
           "target": "lib/ganzhi.js",
           "source": "patches/lunar-lite/lib/ganzhi.js",
           "original": "5b7ec19b55f1d703bce40694a7dfb172ddbf3358cef2682f7c048c65b01cba2d",
-          "patched": "d90e30baa5e0e1ca6e938a8615ffdc99b2a4291611e5d79c14fc764681e4693d"
+          "patched": "17ffade494d4026edbbf2547fa4875d793f6ad24c41ffb2b83ce34d452f7bc3a"
         },
         {
           "target": "lib/ganzhi.d.ts",
           "source": "patches/lunar-lite/lib/ganzhi.d.ts",
           "original": "874836fd73b15418181c9f6c77fea392b051bcdfbbb5a37f98fe886a65447583",
           "patched": "39e90267ac289e5efb561b73ed80f9ef41c57e2ef76ca000cc04d175e17e3901"
+        },
+        {
+          "target": "lib/convertor.js",
+          "source": "patches/lunar-lite/lib/convertor.js",
+          "original": "d3a9bc09fea94f308cefdd52439b36669851a893474dce1a8cc881b11bfb8837",
+          "patched": "a25127e2c42e4f2a81bbf19323d2d609021ad2fa5c039f2826924282f53dcf34"
+        },
+        {
+          "target": "lib/convertor.d.ts",
+          "source": "patches/lunar-lite/lib/convertor.d.ts",
+          "original": "4027f7a093952dbd28fd2ec7e5f3f78086df7e830a1f86fe01d498d074bcbc68",
+          "patched": "304d88f73ee714c4ee3289e43251bc104166a9437b54cc30f0b40328c94aef3a"
+        },
+        {
+          "target": "lib/misc.js",
+          "source": "patches/lunar-lite/lib/misc.js",
+          "original": "2272b388880f53f52bfd934b5e39c0f3756331d4b313971df195f822e273e45d",
+          "patched": "ec849d663894a36419c1aa398e066fcc32ff1e991f6818677f15b7883f61d719"
         }
       ]
     }

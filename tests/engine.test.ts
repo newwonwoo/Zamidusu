@@ -1,37 +1,40 @@
 // V-01 포국 정합(R-01~R-03, U-08): 독립 구현(전통 구결) 대 래퍼(iztro) — 칸 단위 대조
 import { describe, expect, it } from 'vitest';
 import { leapMonthOfLunarYear, lunarToSolar, solarToLunar } from '../src/core/time';
+import type { LunarBasis } from '../src/core/time';
 import { branchIndex, mod } from '../src/core/ganzhi';
 import { compareWithIndependent as compare, hourOfBranch, keyOf, makeChart, randomSolarDate, rng, solarLunarOf } from './helpers';
 
-describe('V-01 포국 정합: 독립 구현 대 엔진', () => {
-  it('무작위 900건(1900~2100, 음력 설 기준)에서 모든 대조 항목이 일치한다', () => {
-    const r = rng(20261009);
+const CALENDARS: [LunarBasis, string, number][] = [['korea', '한국 음력(기본)', 900], ['china', '중국 음력', 400]];
+
+describe.each(CALENDARS)('V-01 포국 정합: 독립 구현 대 엔진 — %s', (cal, _label, count) => {
+  it(`무작위 ${count}건(1900~2100, 음력 설 기준)에서 모든 대조 항목이 일치한다`, () => {
+    const r = rng(20261009 + (cal === 'china' ? 1 : 0));
     const failures: string[] = [];
     let compared = 0;
-    for (let i = 0; i < 900; i++) {
+    for (let i = 0; i < count; i++) {
       const { y, m, d } = randomSolarDate(r, 1900, 2100);
       if (y === 1900 && m < 2) continue;
       const hb = Math.floor(r() * 12);
       const gender = r() < 0.5 ? 'M' : 'F';
-      const chart = makeChart(y, m, d, hb, gender);
-      failures.push(...compare(`[${y}-${m}-${d} ${hb}시 ${gender}]`, chart, keyOf(y, m, d, hb, 'lunarNewYear'), gender));
+      const chart = makeChart(y, m, d, hb, gender, { lunarBasis: cal });
+      failures.push(...compare(`[${cal} ${y}-${m}-${d} ${hb}시 ${gender}]`, chart, keyOf(y, m, d, hb, 'lunarNewYear', cal), gender));
       compared++;
     }
-    expect(compared).toBeGreaterThan(850);
+    expect(compared).toBeGreaterThan(count * 0.94);
     expect(failures.slice(0, 20)).toEqual([]);
   });
 
-  it('입춘 기준(N-03) 300건도 연간·연지 계열이 입춘 기준 연주와 일치한다', () => {
-    const r = rng(777);
+  it('입춘 기준(N-03) 표본도 연간·연지 계열이 입춘 기준 연주와 일치한다', () => {
+    const r = rng(777 + (cal === 'china' ? 1 : 0));
     const failures: string[] = [];
-    for (let i = 0; i < 300; i++) {
+    for (let i = 0; i < count / 3; i++) {
       const { y, m, d } = randomSolarDate(r, 1900, 2100);
       if (y === 1900 && m < 2) continue;
       const hb = Math.floor(r() * 12);
       const gender = r() < 0.5 ? 'M' : 'F';
-      const chart = makeChart(y, m, d, hb, gender, { yearBasis: 'ipchun' });
-      failures.push(...compare(`[입춘 ${y}-${m}-${d} ${hb}시 ${gender}]`, chart, keyOf(y, m, d, hb, 'ipchun'), gender));
+      const chart = makeChart(y, m, d, hb, gender, { yearBasis: 'ipchun', lunarBasis: cal });
+      failures.push(...compare(`[${cal} 입춘 ${y}-${m}-${d} ${hb}시 ${gender}]`, chart, keyOf(y, m, d, hb, 'ipchun', cal), gender));
     }
     expect(failures.slice(0, 20)).toEqual([]);
   });
@@ -40,18 +43,20 @@ describe('V-01 포국 정합: 독립 구현 대 엔진', () => {
     const failures: string[] = [];
     let n = 0;
     for (let ly = 1901; ly <= 2099; ly++) {
-      const lm = leapMonthOfLunarYear(ly);
+      const lm = leapMonthOfLunarYear(ly, cal);
       if (!lm) continue;
-      const s = lunarToSolar(ly, lm, true, 20);
+      const s = lunarToSolar(ly, lm, true, 20, cal);
       if (!s) continue;
-      const chart = makeChart(s.y, s.m, s.d, 5, 'F');
-      failures.push(...compare(`[윤${lm}월 ${ly}]`, chart, keyOf(s.y, s.m, s.d, 5, 'lunarNewYear'), 'F'));
+      const chart = makeChart(s.y, s.m, s.d, 5, 'F', { lunarBasis: cal });
+      failures.push(...compare(`[${cal} 윤${lm}월 ${ly}]`, chart, keyOf(s.y, s.m, s.d, 5, 'lunarNewYear', cal), 'F'));
       n++;
     }
     expect(n).toBeGreaterThan(60);
     expect(failures.slice(0, 20)).toEqual([]);
   });
+});
 
+describe('V-01 포국 정합: 음력 기준과 무관한 사실', () => {
   it('T6(1990-01-30 12시 남): 원장 R-05 — 설 기준 庚午·水二局, 입춘 기준 己巳·金四局', () => {
     const a = makeChart(1990, 1, 30, 6, 'M');
     expect(a.meta.fiveElements.hanja).toBe('水二局');
@@ -62,12 +67,12 @@ describe('V-01 포국 정합: 독립 구현 대 엔진', () => {
     expect(b.meta.yearMutagens.map((m) => m.star)).toEqual(['武曲', '貪狼', '天梁', '文曲']); // 己
   });
 
-  it('두 달력 라이브러리의 음력 날짜가 표본에서 일치한다(엔진 달력 = 사주 달력)', () => {
+  it('중국 음력 기준은 달력 라이브러리(lunar-javascript)와 표본에서 일치한다', () => {
     const r = rng(5);
     for (let i = 0; i < 400; i++) {
       const { y, m, d } = randomSolarDate(r, 1900, 2100);
       if (y === 1900 && m < 2) continue;
-      const a = solarToLunar({ y, m, d });
+      const a = solarToLunar({ y, m, d }, 'china');
       const l = solarLunarOf(y, m, d);
       expect([a.year, a.month, a.leap, a.day]).toEqual([l.getYear(), Math.abs(l.getMonth()), l.getMonth() < 0, l.getDay()]);
     }

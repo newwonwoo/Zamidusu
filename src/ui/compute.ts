@@ -22,10 +22,11 @@ export const chartOptionsOf = (form: FormState, settings: Settings, compat: bool
   lateZi: settings.lateZi,
   leapFix: settings.leapFix,
   compat,
+  lunarBasis: form.lunarBasis,
 });
 
 export const computeOutcome = (form: FormState, settings: Settings, compat: boolean): ComputeResult => {
-  const timeSettings: TimeSettings = { correction: settings.correction, lateZi: settings.lateZi, compat };
+  const timeSettings: TimeSettings = { correction: settings.correction, lateZi: settings.lateZi, compat, lunarBasis: form.lunarBasis };
   const r = normalizeBirth(toBirthInput(form), timeSettings);
   if (!r.ok) return { ok: false, errors: r.errors };
   const norm = r.value;

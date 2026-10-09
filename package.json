@@ -27,6 +27,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "axe-core": "^4.10.3",
+    "korean-lunar-calendar": "^0.4.0",
     "playwright-core": "^1.64.0",
     "tyme4ts": "^1.5.3",
     "typescript": "^7.0.2",

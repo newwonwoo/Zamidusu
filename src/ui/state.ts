@@ -4,7 +4,7 @@ import type { BrightnessMode } from '../core/brightness';
 import type { YearBasis } from '../core/chart';
 import { CUSTOM_ID, STANDARD_ID, placeById } from '../core/place';
 import type { NameStyle } from '../core/names';
-import type { BirthInput, CorrectionMode, Gender, LateZiMode } from '../core/time';
+import type { BirthInput, CorrectionMode, Gender, LateZiMode, LunarBasis } from '../core/time';
 
 export interface FormState {
   gender: Gender;
@@ -19,12 +19,14 @@ export interface FormState {
   placeId: string;
   customLon: string;
   yearBasis: YearBasis;
+  /** 음력 기준(I-15) */
+  lunarBasis: LunarBasis;
 }
 
 /** 첫 화면 예시: 원장의 시험 입력 T6(임의 입력, 실존 인물 아님) */
 export const defaultForm = (): FormState => ({
   gender: 'M', calendar: 'solar', leap: false, year: 1990, month: 1, day: 30, hour: 12, minute: 0,
-  placeId: STANDARD_ID, customLon: '127.5', yearBasis: 'lunarNewYear',
+  placeId: STANDARD_ID, customLon: '127.5', yearBasis: 'lunarNewYear', lunarBasis: 'korea',
 });
 
 export interface Settings {
@@ -76,6 +78,7 @@ export const formToQuery = (f: FormState): string => {
   if (f.placeId !== STANDARD_ID) q.set('p', f.placeId);
   if (f.placeId === CUSTOM_ID) q.set('lon', f.customLon);
   if (f.yearBasis === 'ipchun') q.set('yb', 'ipchun');
+  if (f.lunarBasis === 'china') q.set('lb', 'cn');
   return q.toString();
 };
 
@@ -106,6 +109,7 @@ export const queryToForm = (search: string): { form: FormState; auto: boolean; c
     })(),
     customLon: q.get('lon') ?? base.customLon,
     yearBasis: q.get('yb') === 'ipchun' ? 'ipchun' : 'lunarNewYear',
+    lunarBasis: q.get('lb') === 'cn' ? 'china' : 'korea',
   };
   return { form, auto: has, compat: q.get('compat') === '1' };
 };

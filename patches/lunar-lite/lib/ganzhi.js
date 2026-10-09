@@ -34,6 +34,18 @@ var setBirthYearOverride = function (override) {
 };
 exports.setBirthYearOverride = setBirthYearOverride;
 /**
+ * [zamidusu patch] 달력 공급자(convertor.setLunarProvider)가 준 음력 값을, 월주 계산(calculateMonthlyGanZhi)이
+ * 읽는 lunar 객체 모양으로 감싼다. 절기 기준 월간지는 달력과 무관하므로 원래 객체에 맡긴다.
+ */
+var lunarLikeOf = function (provided, lunar) {
+    return {
+        getMonth: function () { return provided.isLeap ? 0 - provided.lunarMonth : provided.lunarMonth; },
+        getDay: function () { return provided.lunarDay; },
+        getMonthGanExact: function () { return lunar.getMonthGanExact(); },
+        getMonthZhiExact: function () { return lunar.getMonthZhiExact(); },
+    };
+};
+/**
  * 将阳历转化为干支纪年
  *
  * @param dateStr 公历日期 YYYY-MM-DD
@@ -45,11 +57,13 @@ var getHeavenlyStemAndEarthlyBranchBySolarDate = function (dateStr, timeIndex, o
     var _a = (0, convertor_1.normalizeDateStr)(dateStr), year = _a[0], month = _a[1], date = _a[2];
     var solar = lunar_typescript_1.Solar.fromYmdHms(year, month, date, Math.max(timeIndex * 2 - 1, 0), 30, 0);
     var lunar = solar.getLunar();
+    var provider = (0, convertor_1.getLunarProvider)();
+    var provided = provider ? provider.toLunar(year, month, date) : null;
     var yearlyGan = (options === null || options === void 0 ? void 0 : options.year) === "normal"
-        ? lunar.getYearGan()
+        ? (provided ? constants_1.HEAVENLY_STEMS[(0, utils_1.fixIndex)(provided.lunarYear - 4, 10)] : lunar.getYearGan())
         : lunar.getYearGanByLiChun();
     var yearlyZhi = (options === null || options === void 0 ? void 0 : options.year) === "normal"
-        ? lunar.getYearZhi()
+        ? (provided ? constants_1.EARTHLY_BRANCHES[(0, utils_1.fixIndex)(provided.lunarYear - 4, 12)] : lunar.getYearZhi())
         : lunar.getYearZhiByLiChun();
     if (birthYearOverride &&
         (options === null || options === void 0 ? void 0 : options.year) !== "normal" &&
@@ -64,7 +78,7 @@ var getHeavenlyStemAndEarthlyBranchBySolarDate = function (dateStr, timeIndex, o
         yearlyZhi,
     ];
     // 如果是初一换干支的话需要自己起五虎遁
-    var monthly = calculateMonthlyGanZhi(yearlyGan, lunar, options === null || options === void 0 ? void 0 : options.month);
+    var monthly = calculateMonthlyGanZhi(yearlyGan, provided ? lunarLikeOf(provided, lunar) : lunar, options === null || options === void 0 ? void 0 : options.month);
     var daily = [
         lunar.getDayGanExact(),
         lunar.getDayZhiExact(),

@@ -6,7 +6,8 @@ import { BRANCHES, BRANCHES_KO, STEMS, STEMS_KO, isValidGanzhi, mod } from './ga
 import { josa } from './explain/korean';
 import { quickKeys, ziweiBranch } from './independent';
 import type { BirthInput, Gender } from './time';
-import { lunarToSolar } from './time';
+import { DEFAULT_LUNAR_BASIS, lunarToSolar } from './time';
+import type { LunarBasis } from './time';
 
 export interface ReverseConstraints {
   yearStem?: number;
@@ -174,11 +175,11 @@ export const reverseSearch = (c: ReverseConstraints, limit = 400): ReverseResult
 };
 
 /** 양력이 아닌 음력 연도 중 연간·연지가 맞고 그 달에 그 날짜가 실제로 있는 해(1900~2100) */
-export const yearsFor = (c: ReverseCandidate, branch: number): number[] => {
+export const yearsFor = (c: ReverseCandidate, branch: number, basis: LunarBasis = DEFAULT_LUNAR_BASIS): number[] => {
   const years: number[] = [];
   for (let y = 1901; y <= 2099; y++) {
     if (mod(y - 4, 10) !== c.yearStem || mod(y - 4, 12) !== branch) continue;
-    if (lunarToSolar(y, c.month, false, c.day)) years.push(y);
+    if (lunarToSolar(y, c.month, false, c.day, basis)) years.push(y);
   }
   return years;
 };

@@ -113,6 +113,15 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, [run, settings]);
 
+  // 음력 기준을 바꾸면 바로 다시 계산한다(두 기준을 번갈아 보며 비교하기 쉽게)
+  const lastLunarBasis = useRef(init.form.lunarBasis);
+  useEffect(() => {
+    if (lastLunarBasis.current === form.lunarBasis) return;
+    lastLunarBasis.current = form.lunarBasis;
+    if (outcome) run(form, settings, { keepView: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.lunarBasis]);
+
   // 계산에 영향을 주는 설정이 바뀌면 다시 계산(첫 마운트는 제외)
   useEffect(() => {
     if (firstRun.current) {
@@ -244,7 +253,7 @@ export default function App() {
 
       {compat && (
         <div className="compat-banner" role="alert">
-          <b>원본 호환 모드 (검증 전용)</b> — 사이트의 알려진 오류(I-01~I-08)를 일부러 재현합니다. 결과를 일반 용도로 쓰지 마세요.
+          <b>원본 호환 모드 (검증 전용)</b> — 사이트의 알려진 오류(I-01~I-08)를 일부러 재현하고 음력은 중국 기준(사이트와 같은 계산으로 추정)으로 셉니다. 결과를 일반 용도로 쓰지 마세요.
           {chart && chart.compatApplied.length > 0 && <small> 적용: {chart.compatApplied.join(' · ')}</small>}
         </div>
       )}
@@ -277,7 +286,7 @@ export default function App() {
               onReset={reset}
             />
           ) : (
-            <ReverseInput onUse={useCandidate} />
+            <ReverseInput onUse={useCandidate} lunarBasis={form.lunarBasis} />
           )}
         </div>
       </aside>
@@ -339,6 +348,7 @@ export default function App() {
         <ManseDialog
           initial={outcome?.norm.civil ? { y: outcome.norm.civil.y, m: outcome.norm.civil.m, d: outcome.norm.civil.d } : todayTarget().date}
           tz={outcome?.norm.tz ?? 'Asia/Seoul'}
+          basis={outcome?.norm.lunarBasis ?? form.lunarBasis}
           onClose={() => setDialog(null)}
         />
       )}

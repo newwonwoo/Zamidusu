@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { buildMonth } from '../core/calendar';
 import type { CalendarCell } from '../core/calendar';
-import type { YMD } from '../core/time';
+import type { LunarBasis, YMD } from '../core/time';
 import type { Settings } from './state';
 
 export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -88,9 +88,9 @@ export function OptionsDialog({ settings, setSettings, onClose }: SettingsDialog
 
 const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
 
-export function ManseDialog({ initial, tz, onClose }: { initial: YMD; tz: string; onClose: () => void }) {
+export function ManseDialog({ initial, tz, basis, onClose }: { initial: YMD; tz: string; basis: LunarBasis; onClose: () => void }) {
   const [ym, setYm] = useState({ y: initial.y, m: initial.m });
-  const month = useMemo(() => buildMonth(ym.y, ym.m, tz), [ym, tz]);
+  const month = useMemo(() => buildMonth(ym.y, ym.m, tz, basis), [ym, tz, basis]);
   const step = (n: number) => {
     const idx = ym.y * 12 + (ym.m - 1) + n;
     const y = Math.floor(idx / 12);
@@ -137,7 +137,9 @@ export function ManseDialog({ initial, tz, onClose }: { initial: YMD; tz: string
           ))}
         </tbody>
       </table>
-      <p className="hint">일진은 60갑자, 음력은 월.일입니다. 절기 시각은 {tz === 'Asia/Seoul' ? '한국 시각' : tz} 기준이며 굵은 테두리는 월이 바뀌는 절(節)입니다. 음력은 천문 계산값이라 한국천문연구원 발표와 드물게 하루 다를 수 있습니다.</p>
+      <p className="hint">일진은 60갑자, 음력은 월.일입니다. 절기 시각은 {tz === 'Asia/Seoul' ? '한국 시각' : tz} 기준이며 굵은 테두리는 월이 바뀌는 절(節)입니다. {basis === 'korea'
+        ? '음력은 한국 기준으로, 한국천문연구원 자료와 같습니다(1900~2050년 전 구간 대조, 2051년 이후는 같은 규칙의 계산값).'
+        : '음력은 중국 표준시 기준(iztro·중국 만세력과 같음)이라 한국 만세력과 하루 다른 날이 있습니다.'}</p>
     </Dialog>
   );
 }

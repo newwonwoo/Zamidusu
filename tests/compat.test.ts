@@ -14,7 +14,8 @@ describe('V-02 호환 모드 델타', () => {
       if (y === 1900 && m < 2) continue;
       const hb = Math.floor(r() * 12);
       const g = r() < 0.5 ? 'M' : 'F';
-      const fixed = makeChart(y, m, d, hb, g);
+      // 호환 모드는 항상 중국 음력이므로, 비교 대상(개선판)도 중국 음력으로 맞춘다 — 달력 차이(I-15)와 섞이지 않게
+      const fixed = makeChart(y, m, d, hb, g, { lunarBasis: 'china' });
       const compat = makeChart(y, m, d, hb, g, { compat: true });
       const keys = new Set<string>();
       fixed.palaces.forEach((p) => p.stars.forEach((s) => keys.add(s.key)));
@@ -50,7 +51,7 @@ describe('V-02 호환 모드 델타', () => {
       const { y, m, d } = randomSolarDate(r, 1930, 2060);
       const hb = Math.floor(r() * 12);
       const compat = makeChart(y, m, d, hb, 'M', { compat: true });
-      const diffs = compareWithIndependent('c', compat, keyOf(y, m, d, hb, 'lunarNewYear'), 'M');
+      const diffs = compareWithIndependent('c', compat, keyOf(y, m, d, hb, 'lunarNewYear', 'china'), 'M');
       const names = diffs.map((s) => s.split(' ')[1].replace(':', '')).sort();
       expect(names).toEqual(['八座', '右弼', '天刑', '天姚'].sort());
     }

@@ -224,6 +224,64 @@ await run('입춘 기준: 절입 시각 전후의 연주(번들 검증)', async 
   await ctx.close();
 });
 
+// ── 4-3. 음력 기준(I-15): 한국/중국 ─────────────────────────────────────────────
+await run('음력 기준(I-15): 한국·중국이 다른 날 — 표시·전환·링크·만세력', async () => {
+  const { page, ctx } = await newPage();
+  // 2012-05-21: 한국 음력 4월 1일(윤3월 다음 달), 중국 음력 윤4월 1일
+  await open(page, 'y=2012&m=5&d=21&h=12&g=M&cal=solar');
+  let center = await page.locator('.center').innerText();
+  check('기본은 한국 음력: 4월 1일 (한국 기준)', center.includes('2012년 4월 1일') && center.includes('한국 기준'), center);
+  check('다른 기준의 날짜도 함께 보인다(중국 윤4월 1일)', center.includes('중국 기준 윤4월 1일'), center);
+  await page.locator('input[name="lunarbasis"]').nth(1).check();
+  await page.waitForFunction(() => document.querySelector('.center')?.textContent?.includes('윤4월 1일 (중국 기준)') || /윤4월 1일\s*\(중국 기준\)/.test(document.querySelector('.center')?.textContent ?? ''), null, { timeout: 8000 });
+  center = await page.locator('.center').innerText();
+  check('중국으로 바꾸면 즉시 윤4월 1일 (중국 기준), 한국 기준 4월 1일이 함께 보인다', /윤4월 1일\s*\(중국 기준\)/.test(center) && center.includes('한국 기준 4월 1일'), center);
+  // (2012-05-21 은 윤4월 1일 ↔ 4월 1일이라 윤달 전반부 보정으로 명반 자체는 같다 — 명반이 달라지는 날은 아래 2023-05-19 로 확인)
+  // 사주 비교 탭의 달력 알림
+  await page.getByRole('tab', { name: '사주 비교' }).click();
+  const notice = await page.locator('.notice').innerText();
+  check('사주 비교: 두 기준의 음력 날짜를 알려 준다', notice.includes('달력 기준') && notice.includes('한국') && notice.includes('중국'), notice);
+  await page.screenshot({ path: `${OUT}/15-lunar-basis-china.png`, fullPage: true });
+  // 링크에는 중국 기준이 담기고(lb=cn), 열면 같은 기준으로 복원된다
+  await page.getByRole('button', { name: '링크 복사' }).click();
+  await page.waitForSelector('.toast');
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  check('링크에 음력 기준(lb=cn)이 담긴다', link.includes('lb=cn'), link);
+  const p2 = await ctx.newPage();
+  await p2.goto(link);
+  await p2.waitForSelector('.cell');
+  check('링크를 열면 중국 기준으로 복원된다', /윤4월 1일\s*\(중국 기준\)/.test(await p2.locator('.center').innerText()));
+  check('복원된 입력부의 라디오도 중국이다', await p2.locator('input[name="lunarbasis"]').nth(1).isChecked());
+  // 만세력: 2012-05-21 칸의 음력 표기가 기준에 따라 다르다
+  await p2.getByRole('button', { name: '만세력' }).click();
+  await p2.waitForSelector('[role="dialog"]');
+  const birthCell = await p2.locator('td.birth .lunar').innerText();
+  check('만세력(중국 기준): 윤4.1', birthCell.trim() === '윤4.1', birthCell);
+  await p2.keyboard.press('Escape');
+  await p2.close();
+  // 한국으로 되돌리면 한국 값
+  await page.locator('input[name="lunarbasis"]').nth(0).check();
+  await page.waitForFunction(() => /2012년 4월 1일\s*\(한국 기준\)/.test(document.querySelector('.center')?.textContent ?? ''), null, { timeout: 8000 });
+  await page.getByRole('button', { name: '만세력' }).click();
+  await page.waitForSelector('[role="dialog"]');
+  check('만세력(한국 기준): 4.1', (await page.locator('td.birth .lunar').innerText()).trim() === '4.1');
+  await page.keyboard.press('Escape');
+  // 두 기준이 다른 날 2023-05-19: 한국 3월 30일 ↔ 중국 4월 1일 — 달이 달라져 명반이 달라진다
+  await open(page, 'y=2023&m=5&d=19&h=12&g=M&cal=solar');
+  const board = () => page.locator('.cell[data-branch]').evaluateAll((els) => els.map((e) => e.textContent).join('|'));
+  center = await page.locator('.center').innerText();
+  check('2023-05-19 한국: 3월 30일', center.includes('2023년 3월 30일') && center.includes('중국 기준 4월 1일'), center);
+  const boardKorea = await board();
+  await page.locator('input[name="lunarbasis"]').nth(1).check();
+  await page.waitForFunction(() => /2023년 4월 1일\s*\(중국 기준\)/.test(document.querySelector('.center')?.textContent ?? ''), null, { timeout: 8000 });
+  check('2023-05-19 중국: 4월 1일이며 명반이 달라진다', (await board()) !== boardKorea);
+  await page.screenshot({ path: `${OUT}/16-lunar-basis-diff.png`, fullPage: true });
+  // 두 기준이 같은 날(T6)에는 다른 기준 표시가 없다
+  await open(page, 'y=1990&m=1&d=30&h=12&g=M&cal=solar');
+  check('같은 날에는 “다른 기준” 표시가 없다', (await page.locator('.alt-lunar').count()) === 0);
+  await ctx.close();
+});
+
 // ── 5. 입력 검증 ────────────────────────────────────────────────────────────────
 await run('입력: 음력·윤달·오류 안내', async () => {
   const { page, ctx } = await newPage();

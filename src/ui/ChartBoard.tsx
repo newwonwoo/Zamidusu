@@ -144,7 +144,17 @@ function CenterInfo({ chart, view, comparison, settings }: Pick<Props, 'chart' |
       <h2 className="center-title">{n.gender === 'M' ? '남' : '여'}명 · {ZODIAC_KO[m.yearBranch]}띠</h2>
       <dl className="center-list">
         <div><dt>양력</dt><dd>{n.civil.y}-{pad(n.civil.m)}-{pad(n.civil.d)}{n.hourKnown ? ` ${pad(n.civil.h)}:${pad(n.civil.mi)}` : ' (시 모름)'}</dd></div>
-        <div><dt>음력</dt><dd>{lunar.year}년 {lunar.leap ? '윤' : ''}{lunar.month}월 {lunar.day}일</dd></div>
+        <div>
+          <dt>음력</dt>
+          <dd>
+            {lunar.year}년 {lunar.leap ? '윤' : ''}{lunar.month}월 {lunar.day}일 <small>({m.lunarBasis === 'korea' ? '한국' : '중국'} 기준)</small>
+            {m.altLunar && (
+              <small className="alt-lunar" title="한국과 중국 음력은 합삭이 자정 무렵인 달에 하루 달라집니다">
+                {' '}· {m.altLunar.basis === 'korea' ? '한국' : '중국'} 기준 {m.altLunar.lunar.leap ? '윤' : ''}{m.altLunar.lunar.month}월 {m.altLunar.lunar.day}일
+              </small>
+            )}
+          </dd>
+        </div>
         {n.correction && n.correction.deltaMinutes !== 0 && (
           <div><dt>보정</dt><dd title={n.correction.note}>{n.corrected ? fmtWall(n.corrected) : ''} ({formatDelta(n.correction.deltaMinutes)})</dd></div>
         )}
