@@ -1,9 +1,12 @@
 // V-14 화면 E2E: 실제 Chromium 으로 사용자 흐름을 따라가며 확인하고, 스크린샷과 결과 JSON 을 e2e/out 에 남긴다.
 //   실행: npm run build && npm run e2e
 import fs from 'node:fs';
-import { startServer, launch } from './lib.mjs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { startServer, startSubpathServer, launch } from './lib.mjs';
 
 const OUT = 'e2e/out';
+const AXE_SOURCE = fs.readFileSync('node_modules/axe-core/axe.min.js', 'utf8');
 fs.mkdirSync(OUT, { recursive: true });
 
 const results = [];
@@ -19,6 +22,8 @@ const server = await startServer();
 const browser = await launch();
 
 const externalRequests = [];
+/** 이 검증에서 직접 띄운 보조 서버(하위 경로 호스팅). 외부 요청으로 세지 않는다 */
+const allowedOrigins = [];
 const newPage = async (viewport = { width: 1440, height: 1000 }, opts = {}) => {
   const ctx = await browser.newContext({
     viewport, colorScheme: opts.scheme ?? 'light', deviceScaleFactor: opts.scale ?? 1, acceptDownloads: true,
@@ -27,7 +32,8 @@ const newPage = async (viewport = { width: 1440, height: 1000 }, opts = {}) => {
   const page = await ctx.newPage();
   page.on('request', (req) => {
     const u = req.url();
-    if (!u.startsWith(server.url) && !u.startsWith('data:') && !u.startsWith('blob:')) externalRequests.push(`[${current}] ${req.method()} ${u}`);
+    const own = [server.url, 'file://', ...allowedOrigins].some((p) => u.startsWith(p));
+    if (!own && !u.startsWith('data:') && !u.startsWith('blob:')) externalRequests.push(`[${current}] ${req.method()} ${u}`);
     if (req.method() !== 'GET' && req.method() !== 'HEAD' && !u.startsWith('data:') && !u.startsWith('blob:')) externalRequests.push(`[${current}] ${req.method()} ${u}`);
   });
   page.on('console', (m) => {
@@ -383,6 +389,126 @@ await run('이미지 저장·링크 복사', async () => {
   await page2.waitForSelector('.cell');
   check('(점검) 쿼리 형식 주소는 서버에 보인다', server.seen.slice(mark2).some((u) => u.includes('y=1990')), server.seen.slice(mark2).join(' | '));
   await ctx.close();
+});
+
+// ── 10-2. 배포 형태 ─────────────────────────────────────────────────────────────
+await run('배포 형태: file:// 직접 열기 · 하위 경로(/Zamidusu/) 호스팅', async () => {
+  // 정적 서버 없이 dist/index.html 을 파일로 바로 여는 경우(브라우저가 module·crossorigin 을 막는 환경)
+  const { page, ctx } = await newPage();
+  const fileUrl = pathToFileURL(path.resolve('dist/index.html')).href;
+  await page.goto(`${fileUrl}#y=1990&m=1&d=30&h=12&g=M&cal=solar`);
+  await page.waitForSelector('.cell', { timeout: 10000 });
+  check('file:// 로 열어도 명반이 그려진다', (await page.locator('.cell').count()) === 12);
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check('file:// 에서도 스타일이 적용된다', bg === 'rgb(246, 241, 231)', bg);
+  check('file:// 에서 입력값(해시)으로 명반이 열린다', (await page.locator('.center').innerText()).includes('1990-01-30 12:00'));
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }).catch(() => null), page.getByRole('button', { name: '이미지 저장' }).click()]);
+  check('file:// 에서 이미지 저장이 된다', Boolean(dl) && dl.suggestedFilename() === 'ziwei-chart-19900130.png', dl ? dl.suggestedFilename() : '다운로드 없음');
+  await ctx.close();
+
+  // GitHub Pages 처럼 https://호스트/저장소이름/ 아래에 올린 경우
+  const sub = await startSubpathServer();
+  allowedOrigins.push(sub.origin);
+  const c2 = await newPage();
+  await c2.page.goto(`${sub.url}#y=1984&m=7&d=15&h=8&g=F&cal=solar`);
+  await c2.page.waitForSelector('.cell', { timeout: 10000 });
+  check('하위 경로에서도 명반이 그려진다', (await c2.page.locator('.cell').count()) === 12 && (await c2.page.locator('.center').innerText()).includes('여명'));
+  await c2.ctx.close();
+  await sub.stop();
+});
+
+// ── 10-3. 화면 폭별 배치(태블릿 구간 포함) ─────────────────────────────────────────
+await run('화면 폭별 배치: 3열 → 2열 → 모바일 3탭, 가로 넘침 없음', async () => {
+  const { page, ctx } = await newPage({ width: 1440, height: 900 });
+  const box = async (sel) => (await page.locator(sel).first().boundingBox());
+  const overflow = async () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  for (const w of [1920, 1440, 1181]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await open(page, 'y=1990&m=1&d=30&h=12&g=M&cal=solar');
+    const [i, c, sd] = [await box('.input-panel'), await box('.chart-panel'), await box('.side-panel')];
+    check(`${w}px: 입력·명반·해설 3열(같은 줄, 왼쪽→오른쪽)`, Math.abs(i.y - c.y) < 4 && Math.abs(c.y - sd.y) < 4 && i.x < c.x && c.x < sd.x, JSON.stringify([i, c, sd].map((b) => [Math.round(b.x), Math.round(b.y)])));
+    check(`${w}px: 가로 넘침 없음`, (await overflow()) <= 1, await overflow());
+  }
+  for (const w of [1180, 1024, 900, 820, 761]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await open(page, 'y=1990&m=1&d=30&h=12&g=M&cal=solar');
+    const [i, c, sd] = [await box('.input-panel'), await box('.chart-panel'), await box('.side-panel')];
+    check(`${w}px: 입력이 위, 그 아래 명반·해설 2열`, i.y + i.height <= c.y + 1 && Math.abs(c.y - sd.y) < 4 && c.x < sd.x, JSON.stringify([i, c, sd].map((b) => [Math.round(b.x), Math.round(b.y), Math.round(b.width)])));
+    check(`${w}px: 명반 칸이 12개 모두 보이고 겹치지 않는다`, await page.evaluate(() => {
+      const r = [...document.querySelectorAll('.cell')].map((e) => e.getBoundingClientRect());
+      return r.length === 12 && r.every((a, k) => a.width > 40 && r.every((b, j) => j <= k || a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1));
+    }));
+    check(`${w}px: 가로 넘침 없음`, (await overflow()) <= 1, await overflow());
+    if (w === 1024) await page.screenshot({ path: `${OUT}/14-tablet-1024.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 760, height: 900 });
+  await open(page, 'y=1990&m=1&d=30&h=12&g=M&cal=solar');
+  check('760px 이하: 모바일 3탭', (await page.locator('.mobile-tabs button').count()) === 3 && (await page.locator('.mobile-tabs').isVisible()));
+  check('760px: 가로 넘침 없음', (await overflow()) <= 1, await overflow());
+  await ctx.close();
+});
+
+// ── 10-4. 접근성(axe-core) ──────────────────────────────────────────────────────
+// WCAG 2.0/2.1 A·AA 와 모범 사례 규칙을 주요 화면 상태마다 검사한다. 위반이 하나라도 있으면 실패.
+await run('접근성(axe-core): 라이트·다크 × 데스크톱·모바일, 팝업·역산·시 모름 포함', async () => {
+  const scan = async (page, label) => {
+    await page.evaluate(AXE_SOURCE);
+    const found = await page.evaluate(async () => {
+      const r = await window.axe.run(document, { resultTypes: ['violations'], runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] } });
+      return r.violations.map((v) => `${v.id}[${v.impact}] ${v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join(' | ')}`);
+    });
+    check(`axe 위반 0건 — ${label}`, found.length === 0, found.join(' ; '));
+  };
+  const H = 'y=1990&m=1&d=30&h=12&g=M&cal=solar';
+  for (const scheme of ['light', 'dark']) {
+    const { page, ctx } = await newPage({ width: 1440, height: 1000 }, { scheme });
+    await open(page, H);
+    await scan(page, `${scheme} 데스크톱 · 본명+궁 해설`);
+    await page.getByRole('tab', { name: '사주 비교' }).click();
+    await scan(page, `${scheme} 데스크톱 · 사주 비교`);
+    await page.getByRole('tab', { name: '궁 해설' }).click();
+    for (const name of ['대한', '유년', '유시']) {
+      await page.getByRole('tab', { name }).click();
+      await scan(page, `${scheme} 데스크톱 · ${name} 모드`);
+    }
+    await page.getByRole('tab', { name: '본명' }).click();
+    await page.getByRole('tab', { name: '역산 입력' }).click();
+    await page.locator('.reverse label', { hasText: '명궁 위치' }).locator('select').selectOption('0');
+    await page.locator('.reverse label', { hasText: '신궁 위치' }).locator('select').selectOption('1');
+    await scan(page, `${scheme} 데스크톱 · 역산(모순 안내)`);
+    await page.locator('.reverse label', { hasText: '신궁 위치' }).locator('select').selectOption('');
+    await scan(page, `${scheme} 데스크톱 · 역산(후보 목록)`);
+    await page.getByRole('tab', { name: '기본 입력' }).click();
+    for (const name of ['글꼴 설정', '표시 옵션', '만세력']) {
+      await page.getByRole('button', { name }).click();
+      await page.waitForSelector('[role="dialog"]');
+      await scan(page, `${scheme} 데스크톱 · ${name} 팝업`);
+      await page.keyboard.press('Escape');
+      await page.waitForSelector('[role="dialog"]', { state: 'detached' });
+    }
+    await page.goto('about:blank');
+    await page.goto(`${server.url}#y=1990&m=1&d=30&h=&g=M&cal=solar`);
+    await page.waitForSelector('.hour-unknown', { timeout: 10000 });
+    await scan(page, `${scheme} 데스크톱 · 시 모름`);
+    await ctx.close();
+  }
+  for (const scheme of ['light', 'dark']) {
+    const { page, ctx } = await newPage({ width: 390, height: 844 }, { scheme, scale: 2 });
+    await open(page, H);
+    await scan(page, `${scheme} 모바일 · 명반 탭`);
+    await page.locator('.cell[data-branch="2"]').click();
+    await page.locator('.peek').click();
+    await scan(page, `${scheme} 모바일 · 궁 해설 탭`);
+    await page.locator('.mobile-tabs button').nth(2).click();
+    await scan(page, `${scheme} 모바일 · 사주 비교 탭`);
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await newPage();
+    await open(page, 'compat=1');
+    await scan(page, '라이트 데스크톱 · 호환 모드');
+    await ctx.close();
+  }
 });
 
 // ── 11. 모바일 ──────────────────────────────────────────────────────────────────

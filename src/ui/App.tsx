@@ -1,3 +1,4 @@
+import { toPng } from 'html-to-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildView, decadalList, viewForDecade } from '../core/chart';
 import type { ViewTarget, YearBasis } from '../core/chart';
@@ -170,7 +171,6 @@ export default function App() {
     // 선택·삼방사정 강조는 화면용이므로 저장하는 동안만 끈다
     boardRef.current.classList.add('exporting');
     try {
-      const { toPng } = await import('html-to-image');
       const bg = getComputedStyle(document.body).backgroundColor;
       const url = await toPng(boardRef.current, { pixelRatio: 2, backgroundColor: bg, cacheBust: true });
       const a = document.createElement('a');
@@ -319,7 +319,9 @@ export default function App() {
         )}
       </main>
 
-      <section className="side-panel" aria-label="해설">
+      {/* 모바일에서 명반 탭이 숨겨지면 이 패널이 화면의 본문이므로 main 역할을 넘겨 받는다(본문 영역은 항상 하나) */}
+      <section className="side-panel" aria-label="해설" role={mobile && mobileTab !== 'chart' ? 'main' : undefined}>
+        <h2 className="sr-only">해설과 사주 비교</h2>
         <div className="seg side-tabs" role="tablist" aria-label="우측 패널">
           <button role="tab" aria-selected={rightTab === 'explain'} className={rightTab === 'explain' ? 'on' : ''} onClick={() => setRightTab('explain')}>궁 해설</button>
           <button role="tab" aria-selected={rightTab === 'saju'} className={rightTab === 'saju' ? 'on' : ''} onClick={() => setRightTab('saju')}>사주 비교</button>

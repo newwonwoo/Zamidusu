@@ -46,7 +46,7 @@ export function HourUnknown({ norm, options, settings, onPick }: Props) {
       <p>명궁과 오행국이 태어난 시로 정해지기 때문입니다. 아래 표는 시진마다 달라지는 값입니다. 가장 가까운 시진을 골라 명반을 열어 보거나, 기억나는 정보로 ‘역산 입력’을 써 보세요.</p>
       <div className="table-wrap">
         <table className="hour-table">
-          <thead><tr><th>시진</th><th>시간대</th><th>명궁</th><th>신궁</th><th>오행국</th><th>명궁 주성</th><th>대한</th><th /></tr></thead>
+          <thead><tr><th scope="col">시진</th><th scope="col">시간대</th><th scope="col">명궁</th><th scope="col">신궁</th><th scope="col">오행국</th><th scope="col">명궁 주성</th><th scope="col">대한</th><th scope="col"><span className="sr-only">선택</span></th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.b}>

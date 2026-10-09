@@ -22,10 +22,10 @@ export function Dialog({ title, onClose, children }: { title: string; onClose: (
   return (
     <div className="backdrop" onClick={onClose}>
       <div className="dialog" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
-        <header>
+        <div className="dialog-head">
           <h2>{title}</h2>
           <button className="ghost" onClick={onClose} aria-label="닫기">✕</button>
-        </header>
+        </div>
         <div className="dialog-body">{children}</div>
       </div>
     </div>

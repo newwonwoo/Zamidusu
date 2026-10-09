@@ -77,7 +77,7 @@ export function SajuPanel({ chart, saju, comparison, onYearBasis }: Props) {
         <div className="table-wrap">
           <table className="pillars">
             <thead>
-              <tr><th />{comparison.columns.map((c) => <th key={c.key}>{c.label}</th>)}</tr>
+              <tr><th scope="col"><span className="sr-only">구분</span></th>{comparison.columns.map((c) => <th scope="col" key={c.key}>{c.label}</th>)}</tr>
             </thead>
             <tbody>
               <tr className="row-saju">
