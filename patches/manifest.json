@@ -1,0 +1,24 @@
+{
+  "$comment": "node_modules 에 덮어쓰는 파일 목록. original/patched 는 줄바꿈을 LF 로 맞춘 SHA-256. 설치된 파일이 original 도 patched 도 아니면(=버전이 다르면) 적용하지 않고 오류로 멈춘다. 사람이 읽는 변경 내용은 patches/lunar-lite-0.2.8.diff.",
+  "patches": [
+    {
+      "package": "lunar-lite",
+      "version": "0.2.8",
+      "reason": "입춘 기준 연주를 날짜가 아니라 출생 순간으로 판정하기 위한 setBirthYearOverride 추가 (src/core/chart.ts 가 사용)",
+      "files": [
+        {
+          "target": "lib/ganzhi.js",
+          "source": "patches/lunar-lite/lib/ganzhi.js",
+          "original": "5b7ec19b55f1d703bce40694a7dfb172ddbf3358cef2682f7c048c65b01cba2d",
+          "patched": "d90e30baa5e0e1ca6e938a8615ffdc99b2a4291611e5d79c14fc764681e4693d"
+        },
+        {
+          "target": "lib/ganzhi.d.ts",
+          "source": "patches/lunar-lite/lib/ganzhi.d.ts",
+          "original": "874836fd73b15418181c9f6c77fea392b051bcdfbbb5a37f98fe886a65447583",
+          "patched": "39e90267ac289e5efb561b73ed80f9ef41c57e2ef76ca000cc04d175e17e3901"
+        }
+      ]
+    }
+  ]
+}

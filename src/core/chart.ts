@@ -117,7 +117,7 @@ const ymdStr = (v: YMD): string => `${v.y}-${v.m}-${v.d}`;
  * 엔진(lunar-lite)은 입춘 기준의 연주를 '날짜' 단위로만 판정해서, 입춘 당일에는 절입 시각 전에 태어나도
  * 새해로 본다(한국 시계와 중국 표준시의 날짜 차이로 전후 하루도 어긋날 수 있다).
  * 그래서 실제 출생 순간으로 정한 연주를 그 날짜에 한해 엔진이 대신 쓰게 한다.
- * 이 기능은 lunar-lite 패치(patches/lunar-lite+0.2.8.patch, postinstall 로 적용)가 제공한다.
+ * 이 기능은 lunar-lite 패치(patches/README.md, postinstall 의 scripts/apply-patches.mjs 로 적용)가 제공한다.
  * 한계: 유년·유월 등 운의 경계는 날짜 단위 그대로다(설계서 U-02).
  */
 const withBirthYear = <T>(norm: NormalizedBirth, options: ChartOptions, run: () => T): T => {

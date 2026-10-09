@@ -1,6 +1,6 @@
 // 입춘 기준 연주(N-03) 회귀 검증.
 // 배경: 엔진(iztro → lunar-lite)은 입춘 기준 연주를 '날짜' 단위로만 판정해 입춘 당일에는 절입 시각 전이어도 새해로 본다.
-// 그래서 lunar-lite 를 패치(patches/lunar-lite+0.2.8.patch)해 출생 순간으로 정한 연주를 쓰게 했다.
+// 그래서 lunar-lite 를 패치(patches/README.md)해 출생 순간으로 정한 연주를 쓰게 했다.
 // 이 파일은 (1) 패치가 적용돼 있는지 (2) 사주 연주와 같은 해로 판정되는지 (3) 범위 밖으로 새지 않는지를 확인한다.
 
 import { astro } from 'iztro';
@@ -29,7 +29,7 @@ const yearsAt = (y: number, m: number, d: number, h: number, mi: number) => {
 };
 
 describe('입춘 기준 연주 — 패치와 정확도', () => {
-  it('lunar-lite 패치가 적용되어 있고, 지정한 날짜의 입춘 기준 연주에만 작용한다 (postinstall: patch-package)', () => {
+  it('lunar-lite 패치가 적용되어 있고, 지정한 날짜의 입춘 기준 연주에만 작용한다 (postinstall: scripts/apply-patches.mjs)', () => {
     // 이 테스트가 실패하면 npm install 을 --ignore-scripts 로 했는지 확인하라.
     expect(typeof setBirthYearOverride).toBe('function');
     const read = (date: string, basis: 'exact' | 'normal') =>

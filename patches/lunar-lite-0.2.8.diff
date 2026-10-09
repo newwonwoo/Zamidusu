@@ -1,26 +1,5 @@
-diff --git a/node_modules/lunar-lite/lib/ganzhi.d.ts b/node_modules/lunar-lite/lib/ganzhi.d.ts
-index 7e7cf46..45c3670 100755
---- a/node_modules/lunar-lite/lib/ganzhi.d.ts
-+++ b/node_modules/lunar-lite/lib/ganzhi.d.ts
-@@ -16,3 +16,14 @@ export declare const getHeavenlyStemAndEarthlyBranchByLunarDate: (dateStr: strin
-  * @returns HeavenlyStemAndEarthlyBranchResult
-  */
- export declare const getHeavenlyStemAndEarthlyBranchBySolarDate: (dateStr: string | Date, timeIndex: number, options?: Options) => HeavenlyStemAndEarthlyBranchDate;
-+/**
-+ * [zamidusu patch] 출생 순간 기준 연주 덮어쓰기. 입춘 기준 연주를 '날짜'가 아니라 실제 출생 순간으로 정확히 정하고 싶을 때,
-+ * 계산 직전에 지정하고 끝나면 null 로 해제한다. 해당 양력 날짜에 대해서만, 연주 기준이 'normal' 이 아닐 때 적용된다.
-+ */
-+export declare const setBirthYearOverride: (override: {
-+    year: number;
-+    month: number;
-+    date: number;
-+    gan: string;
-+    zhi: string;
-+} | null) => void;
-diff --git a/node_modules/lunar-lite/lib/ganzhi.js b/node_modules/lunar-lite/lib/ganzhi.js
-index 0372e1a..a1127b6 100755
---- a/node_modules/lunar-lite/lib/ganzhi.js
-+++ b/node_modules/lunar-lite/lib/ganzhi.js
+--- a/lib/ganzhi.js
++++ b/lib/ganzhi.js
 @@ -1,6 +1,6 @@
  "use strict";
  Object.defineProperty(exports, "__esModule", { value: true });
@@ -29,11 +8,10 @@ index 0372e1a..a1127b6 100755
  var constants_1 = require("./constants");
  var convertor_1 = require("./convertor");
  var lunar_typescript_1 = require("lunar-typescript");
-@@ -19,6 +19,20 @@ var getHeavenlyStemAndEarthlyBranchByLunarDate = function (dateStr, timeIndex, i
-     return (0, exports.getHeavenlyStemAndEarthlyBranchBySolarDate)(solarDate.toString(), timeIndex, options);
+@@ -20,6 +20,20 @@
  };
  exports.getHeavenlyStemAndEarthlyBranchByLunarDate = getHeavenlyStemAndEarthlyBranchByLunarDate;
-+/**
+ /**
 + * [zamidusu patch] 출생 순간 기준 연주 덮어쓰기.
 + *
 + * 입춘 기준(year !== 'normal')의 연주는 원래 '날짜' 단위로만 판정되어, 입춘 당일에는 절입 시각 전이어도
@@ -47,10 +25,11 @@ index 0372e1a..a1127b6 100755
 +    birthYearOverride = override;
 +};
 +exports.setBirthYearOverride = setBirthYearOverride;
- /**
++/**
   * 将阳历转化为干支纪年
   *
-@@ -37,6 +51,14 @@ var getHeavenlyStemAndEarthlyBranchBySolarDate = function (dateStr, timeIndex, o
+  * @param dateStr 公历日期 YYYY-MM-DD
+@@ -37,6 +51,14 @@
      var yearlyZhi = (options === null || options === void 0 ? void 0 : options.year) === "normal"
          ? lunar.getYearZhi()
          : lunar.getYearZhiByLiChun();
@@ -65,3 +44,20 @@ index 0372e1a..a1127b6 100755
      var yearly = [
          yearlyGan,
          yearlyZhi,
+--- a/lib/ganzhi.d.ts
++++ b/lib/ganzhi.d.ts
+@@ -16,3 +16,14 @@
+  * @returns HeavenlyStemAndEarthlyBranchResult
+  */
+ export declare const getHeavenlyStemAndEarthlyBranchBySolarDate: (dateStr: string | Date, timeIndex: number, options?: Options) => HeavenlyStemAndEarthlyBranchDate;
++/**
++ * [zamidusu patch] 출생 순간 기준 연주 덮어쓰기. 입춘 기준 연주를 '날짜'가 아니라 실제 출생 순간으로 정확히 정하고 싶을 때,
++ * 계산 직전에 지정하고 끝나면 null 로 해제한다. 해당 양력 날짜에 대해서만, 연주 기준이 'normal' 이 아닐 때 적용된다.
++ */
++export declare const setBirthYearOverride: (override: {
++    year: number;
++    month: number;
++    date: number;
++    gan: string;
++    zhi: string;
++} | null) => void;

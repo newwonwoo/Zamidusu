@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "node e2e/run.mjs",
-    "postinstall": "patch-package"
+    "postinstall": "node scripts/apply-patches.mjs"
   },
   "dependencies": {
     "html-to-image": "^1.11.13",
@@ -27,7 +27,6 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "axe-core": "^4.10.3",
-    "patch-package": "^8.0.1",
     "playwright-core": "^1.64.0",
     "tyme4ts": "^1.5.3",
     "typescript": "^7.0.2",
