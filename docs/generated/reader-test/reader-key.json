@@ -1,0 +1,83 @@
+{
+ "reader1": {
+  "A-life": {
+   "section": 1,
+   "가": "before",
+   "나": "after"
+  },
+  "B-health": {
+   "section": 2,
+   "가": "after",
+   "나": "before"
+  },
+  "A-career": {
+   "section": 3,
+   "가": "before",
+   "나": "after"
+  },
+  "B-spouse": {
+   "section": 4,
+   "가": "after",
+   "나": "before"
+  },
+  "A-wealth": {
+   "section": 5,
+   "가": "before",
+   "나": "after"
+  }
+ },
+ "reader2": {
+  "B-health": {
+   "section": 1,
+   "가": "after",
+   "나": "before"
+  },
+  "B-spouse": {
+   "section": 2,
+   "가": "before",
+   "나": "after"
+  },
+  "A-life": {
+   "section": 3,
+   "가": "after",
+   "나": "before"
+  },
+  "A-wealth": {
+   "section": 4,
+   "가": "before",
+   "나": "after"
+  },
+  "A-career": {
+   "section": 5,
+   "가": "after",
+   "나": "before"
+  }
+ },
+ "reader3": {
+  "B-spouse": {
+   "section": 1,
+   "가": "before",
+   "나": "after"
+  },
+  "A-life": {
+   "section": 2,
+   "가": "before",
+   "나": "after"
+  },
+  "B-health": {
+   "section": 3,
+   "가": "after",
+   "나": "before"
+  },
+  "A-career": {
+   "section": 4,
+   "가": "before",
+   "나": "after"
+  },
+  "A-wealth": {
+   "section": 5,
+   "가": "before",
+   "나": "after"
+  }
+ }
+}

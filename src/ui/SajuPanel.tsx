@@ -4,6 +4,7 @@ import type { CompareItem, Comparison } from '../core/compare';
 import { fmtInstant } from '../core/format';
 import type { SajuChart } from '../core/saju';
 import { annotate, TermText } from './TermText';
+import type { Segment } from './TermText';
 
 interface Props {
   chart: Chart;
@@ -19,44 +20,58 @@ const STATUS_ICON: Record<string, string> = { match: '✓', differ: '≠', info:
 const STATUS_LABEL: Record<string, string> = { match: '두 체계가 같습니다', differ: '두 체계가 다릅니다', info: '참고' };
 
 function EvidenceBadges({ item }: { item: CompareItem }) {
+  const kinds = Array.from(new Set(item.evidence.map((e) => EVIDENCE_LABEL[e.kind]))).join(' · ');
   return (
-    <ul className="evidence" aria-label="근거">
-      {item.evidence.map((e, i) => (
-        <li key={i} className={`ev ev-${e.kind}`}>
-          <span className="ev-kind">{EVIDENCE_LABEL[e.kind]}</span>
-          {e.part && <span className="ev-part">{e.part}</span>}
-          <span className="ev-detail">{e.detail}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function ItemCard({ item }: { item: CompareItem }) {
-  return (
-    <article className={`cmp-card ${item.side}`} data-id={item.id}>
-      <h4><span className="cmp-id">{item.id}</span> {item.title}</h4>
-      <p>{item.body}</p>
-      <EvidenceBadges item={item} />
-      <ul className="live" aria-label="이 명식의 실제 값">
-        {item.live.map((l, i) => (
-          <li key={i} className={`live-${l.status}`}>
-            <span className="live-icon" role="img" aria-label={STATUS_LABEL[l.status]}>{STATUS_ICON[l.status]}</span>
-            {l.text}
+    <details className="evidence-box">
+      <summary>근거 보기 <small>({kinds})</small></summary>
+      <ul className="evidence" aria-label="근거">
+        {item.evidence.map((e, i) => (
+          <li key={i} className={`ev ev-${e.kind}`}>
+            <span className="ev-kind">{EVIDENCE_LABEL[e.kind]}</span>
+            {e.part && <span className="ev-part">{e.part}</span>}
+            <span className="ev-detail">{e.detail}</span>
           </li>
         ))}
       </ul>
+    </details>
+  );
+}
+
+function ItemCard({ item, body, live }: { item: CompareItem; body: Segment[]; live: Segment[][] }) {
+  return (
+    <article className={`cmp-card ${item.side}`} data-id={item.id}>
+      <h4><span className="cmp-id">{item.id}</span> {item.title}</h4>
+      <p><TermText segments={body} /></p>
+      <ul className="live" aria-label="이 사주의 실제 값">
+        {item.live.map((l, i) => (
+          <li key={i} className={`live-${l.status}`}>
+            <span className="live-icon" role="img" aria-label={STATUS_LABEL[l.status]}>{STATUS_ICON[l.status]}</span>
+            <span><TermText segments={live[i]} /></span>
+          </li>
+        ))}
+      </ul>
+      <EvidenceBadges item={item} />
     </article>
   );
 }
 
 export function SajuPanel({ chart, saju, comparison, onYearBasis }: Props) {
   const tz = chart.norm.tz;
-  const noticeSegs = annotate(comparison.notice.lines);
-  const total = comparison.elements.reduce((n, e) => n + e.count, 0) || 1;
-  const counts = comparison.evidenceCounts;
+  // 알림 → 공통점 → 차이점 순서로 용어 풀이(처음 한 번)를 붙이기 위해 한 번에 분해한다
   const common = comparison.items.filter((i) => i.side === 'common');
   const diff = comparison.items.filter((i) => i.side === 'diff');
+  const ordered = [...common, ...diff];
+  const allSegs = annotate([...comparison.notice.lines, ...ordered.flatMap((i) => [i.body, ...i.live.map((l) => l.text)])]);
+  const noticeSegs = allSegs.slice(0, comparison.notice.lines.length);
+  let at = comparison.notice.lines.length;
+  const segsOf = new Map<string, { body: Segment[]; live: Segment[][] }>();
+  for (const it of ordered) {
+    const body = allSegs[at++];
+    const live = it.live.map(() => allSegs[at++]);
+    segsOf.set(it.id, { body, live });
+  }
+  const total = comparison.elements.reduce((n, e) => n + e.count, 0) || 1;
+  const counts = comparison.evidenceCounts;
 
   return (
     <div className="saju">
@@ -143,11 +158,11 @@ export function SajuPanel({ chart, saju, comparison, onYearBasis }: Props) {
 
       <section aria-label="공통점">
         <h3>공통점 <small>5</small></h3>
-        {common.map((i) => <ItemCard key={i.id} item={i} />)}
+        {common.map((i) => <ItemCard key={i.id} item={i} body={segsOf.get(i.id)!.body} live={segsOf.get(i.id)!.live} />)}
       </section>
       <section aria-label="차이점">
         <h3>차이점 <small>5</small></h3>
-        {diff.map((i) => <ItemCard key={i.id} item={i} />)}
+        {diff.map((i) => <ItemCard key={i.id} item={i} body={segsOf.get(i.id)!.body} live={segsOf.get(i.id)!.live} />)}
       </section>
 
       <section className="stage2" aria-label="교차 보기 2단계">

@@ -339,6 +339,25 @@ th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line
 .star-card .b-saju { color: var(--ink-2); }
 .disclaimer { margin-top: 14px; font-size: 0.8em; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: 8px; }
 
+/* 쉬운 해설(설계서 부록 B): 읽는 법 · 한눈에 보기 · 사주로 보면 · 근거 접기 */
+.how-to-read { margin: 0 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 6px 10px; }
+.how-to-read summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+.how-to-read ol { margin: 6px 0 4px; padding-left: 1.3em; display: grid; gap: 3px; }
+.glance { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; background: var(--accent-soft); }
+.palace-card .glance h4 { margin: 0 0 4px; color: var(--accent); }
+.glance-head { margin: 4px 0 8px; font-weight: 600; line-height: 1.65; }
+.glance-points { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.gp { line-height: 1.65; }
+.gp-label { display: inline-block; font-size: 0.78em; font-weight: 700; color: var(--accent); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; margin-right: 6px; vertical-align: 1px; }
+.saju-section { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 4px; }
+.surround-line .legend { display: block; margin-top: 2px; font-size: 0.82em; color: var(--ink-2); }
+.blk-fold { margin: 4px 0; font-size: 0.9em; color: var(--ink-2); }
+.blk-fold summary { cursor: pointer; }
+.blk-fold p { margin: 4px 0 0; }
+.evidence-box { margin: 6px 0 0; font-size: 0.82em; }
+.evidence-box summary { cursor: pointer; color: var(--ink-2); }
+.evidence-box .evidence { margin-top: 4px; }
+
 .notice { border-radius: 10px; padding: 10px 12px; background: var(--accent-soft); margin-bottom: 12px; }
 .notice.year-differs { background: color-mix(in srgb, var(--quan) 16%, transparent); }
 .notice h3 { font-size: 1em; margin-bottom: 6px; }

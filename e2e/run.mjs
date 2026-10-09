@@ -200,6 +200,72 @@ await run('사주 비교 탭(N-01~N-03)', async () => {
   await ctx.close();
 });
 
+// ── 4-1. 쉬운 해설(설계서 부록 B: E-01~E-10) ───────────────────────────────────
+await run('쉬운 해설(E-01~E-10): 한눈에 보기·읽는 법·사주로 보면·근거 접기', async () => {
+  const { page, ctx } = await newPage();
+  await open(page);
+  // 첫 화면의 선택 칸은 명궁(주성 없음 → 차성안궁)
+  check('한눈에 보기 제목이 보인다', (await page.locator('.glance h4').innerText()) === '한눈에 보기');
+  const g0 = await page.locator('.glance').innerText();
+  check('명궁: 결론이 “중심이 되는 별이 없어 … 빌려 읽습니다”로 시작한다', g0.includes('중심이 되는 별이 없어') && g0.includes('천이궁의 천기·태음을 빌려 읽습니다'), g0);
+  check('명궁: 빌려 온 별 항목 2개(천기·태음)', (await page.locator('.glance .gp-label', { hasText: '빌려 온' }).count()) === 2);
+  check('명궁: 함께 있는 별이 역할별 한 줄(재물을 모으는 별·움직임의 별 …)', ['재물을 모으는 별', '움직임의 별', '고독의 별'].every((t) => g0.includes(t)), g0);
+  check('결론이 본문(별 카드)보다 먼저 나온다', await page.evaluate(() => {
+    const g = document.querySelector('.glance'); const st = document.querySelector('.stars-explain');
+    return Boolean(g && st && (g.compareDocumentPosition(st) & Node.DOCUMENT_POSITION_FOLLOWING));
+  }));
+
+  // 요약표에서 관록궁 선택
+  await page.locator('.summary tbody tr', { hasText: '관록' }).click();
+  const head = await page.locator('.glance-head').innerText();
+  check('관록궁 결론: 중심 별 · 강점 · 조심할 점 · 별의 힘', head.includes('중심이 되는 별은 태양입니다') && head.includes('태양은 공정함과 베푸는 힘이 강점이고') && head.includes('남을 챙기다 스스로 지치는 면은 조심할 점입니다') && head.includes('태양은 힘이 가장 약한 자리'), head);
+  const labels = await page.locator('.glance .gp-label').allInnerTexts();
+  check('항목: 태양 · 별의 힘 · 변화(사화) · 명예와 인정의 별 · 걱정과 마찰의 별', ['태양', '별의 힘', '변화(사화)', '명예와 인정의 별', '걱정과 마찰의 별'].every((l) => labels.includes(l)), labels.join('|'));
+  check('별의 힘 항목이 기호의 뜻을 풀어 말한다', (await page.locator('.glance .gp-power .gp-text').first().innerText()).includes("힘이 가장 약한 자리('함')에 있습니다"));
+  const firsts = await page.locator('.glance .term-first').allInnerTexts();
+  check('처음 나오는 용어에는 풀이가 붙는다(화록)', firsts.some((t) => t.includes('화록') && t.includes('좋은 일과 인연이 늘어나는 변화')), firsts.join('|'));
+  check('함께 읽는 칸 옆에 삼합·대궁 설명이 있다', (await page.locator('.surround-line .legend').innerText()).includes('삼합은 네 칸 간격'));
+  const sun = await page.locator('.star-card[data-star="太陽"]').innerText();
+  check('태양 카드: 밝기 문장이 ‘함’의 뜻을 먼저 말한다', sun.includes("'함'으로, 힘이 가장 약한 자리입니다."), sun);
+  check('태양 카드: 사화 문장이 짧은 문장으로 나뉜다', sun.includes('생년 화록이 이 별에 붙어 있습니다.'), sun);
+  const saju = await page.locator('.saju-section').innerText();
+  check('“사주로 보면”: 개수를 말로 풀고 뜻을 붙인다', saju.includes('사주로 보면') && saju.includes('식상은 3개로 많은 편입니다') && saju.includes('말·기술·아이디어로 일하는 쪽'), saju);
+  check('“사주로 보면”이 별 해설 뒤에 있다', await page.evaluate(() => {
+    const st = document.querySelector('.stars-explain'); const sj = document.querySelector('.saju-section');
+    return Boolean(st && sj && (st.compareDocumentPosition(sj) & Node.DOCUMENT_POSITION_FOLLOWING));
+  }));
+  check('옛 “명식”이라는 말이 화면에 없다', !(await page.locator('.explain').innerText()).includes('명식'));
+
+  // 별 카드 속 “사주와 같은 점”은 접혀 있고, 열면 보인다(명궁의 녹존)
+  await page.locator('.summary tbody tr', { hasText: '명궁' }).click();
+  const fold = page.locator('.star-card[data-star="祿存"] details.blk-fold');
+  check('별 카드의 사주 대응은 접혀 있다', (await fold.count()) === 1 && !(await fold.evaluate((d) => d.open)));
+  await fold.locator('summary').click();
+  check('열면 사주의 같은 개념이 풀려 보인다(건록)', (await fold.innerText()).includes('건록') && (await fold.innerText()).includes('경(庚)의 건록은 신(申)'));
+  await page.locator('.summary tbody tr', { hasText: '관록' }).click();
+
+  // 읽는 법
+  const guide = page.locator('details.how-to-read');
+  check('해설 읽는 법은 처음에 접혀 있다', !(await guide.evaluate((d) => d.open)));
+  await guide.locator('summary').click();
+  const gt = await guide.innerText();
+  check('읽는 법을 열면 7개 항목과 별의 힘 순서·개수 설명이 보인다', (await guide.locator('li').count()) === 7 && gt.includes('묘 → 왕 → 평 → 한 → 함') && gt.includes('한눈에 보기를 먼저') && gt.includes('여덟 글자 중 그 기운에 해당하는 글자의 수'), gt);
+  check('요약표 설명이 쉬운 말이다(도움이 되는 요소·신경 쓸 요소)', (await page.locator('.table-note').innerText()).includes('도움이 되는 요소'));
+  await page.screenshot({ path: `${OUT}/03-explain-easy.png`, fullPage: true });
+
+  // 사주 비교: 근거는 접혀 있고 열면 보인다
+  await page.getByRole('tab', { name: '사주 비교' }).click();
+  const boxes = page.locator('.cmp-card details.evidence-box');
+  check('근거 보기가 항목마다 접혀 있다(10개)', (await boxes.count()) === 10 && (await boxes.evaluateAll((els) => els.every((e) => !e.open))));
+  const cardTexts = (await page.locator('.cmp-card').allInnerTexts()).join('\n');
+  check('접힌 상태에서는 내부 번호(원장·V-번호)가 본문에 보이지 않는다', !/원장|V-\d/.test(cardTexts), cardTexts.slice(0, 200));
+  check('비교 본문의 전문용어에 풀이 표시가 붙는다', (await page.locator('.cmp-card[data-id="C-3"] .term, .cmp-card[data-id="C-3"] abbr.term').count()) >= 4);
+  check('비교 본문: 처음 나오는 용어는 풀이를 펼쳐 보여 준다', (await page.locator('.cmp-card .term-first').count()) >= 3);
+  await boxes.first().locator('summary').click();
+  check('근거 보기를 열면 근거 구분과 내용이 보인다', await boxes.first().locator('.ev-kind').first().isVisible() && (await boxes.first().locator('.ev-detail').first().innerText()).length > 5);
+  await ctx.close();
+});
+
 // ── 4-2. 입춘 당일(절입 시각 전후) ──────────────────────────────────────────────
 // 엔진은 입춘 기준 연주를 날짜 단위로만 판정하므로, 빌드된 번들에서도 패치가 작동하는지(명반과 사주의 연주가 같은지) 확인한다.
 await run('입춘 기준: 절입 시각 전후의 연주(번들 검증)', async () => {
@@ -522,8 +588,13 @@ await run('접근성(axe-core): 라이트·다크 × 데스크톱·모바일, �
     const { page, ctx } = await newPage({ width: 1440, height: 1000 }, { scheme });
     await open(page, H);
     await scan(page, `${scheme} 데스크톱 · 본명+궁 해설`);
+    await page.locator('details.how-to-read summary').click();
+    await scan(page, `${scheme} 데스크톱 · 읽는 법 열림`);
+    await page.locator('details.how-to-read summary').click();
     await page.getByRole('tab', { name: '사주 비교' }).click();
     await scan(page, `${scheme} 데스크톱 · 사주 비교`);
+    await page.locator('.cmp-card details.evidence-box summary').first().click();
+    await scan(page, `${scheme} 데스크톱 · 사주 비교(근거 열림)`);
     await page.getByRole('tab', { name: '궁 해설' }).click();
     for (const name of ['대한', '유년', '유시']) {
       await page.getByRole('tab', { name }).click();

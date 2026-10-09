@@ -90,7 +90,7 @@ describe('사주 비교(N-01)', () => {
     expect(termsIn(sample)).toEqual(['사화', '명궁', '삼방사정']);
     for (const t of termsIn(sample)) expect(GLOSSARY[t]).toBeTruthy();
     expect(plainText(sample)).toBe('사화가 붙은 명궁은 삼방사정으로 읽습니다.');
-    expect(plainText(sample, true)).toContain('사화(생년 천간으로 정해지는');
+    expect(plainText(sample, true)).toContain('사화(태어난 해에 따라 정해지는');
     // 같은 용어는 처음 한 번만 풀이를 붙인다
     expect(plainText('{{사화}} {{사화}}', true)).toBe(`사화(${GLOSSARY['사화'].short}) 사화`);
   });

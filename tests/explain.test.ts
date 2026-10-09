@@ -1,15 +1,16 @@
 // V-10 해설 반응성(I-11, I-12) · V-11 길이 균일·궁별 다양성(I-13, I-14) · R-07 범위 · N-04 구성 요소
 import { describe, expect, it } from 'vitest';
-import { GLOSSARY, plainText, termsIn } from '../src/core/glossary';
-import { josa, charLength, hasBatchim } from '../src/core/explain/korean';
+import { plainText } from '../src/core/glossary';
+import { josa, hasBatchim } from '../src/core/explain/korean';
 import { STAR_META, MUTAGENS, PALACE_KEYS, PALACE_KO, SCOPES, MUTAGEN_LONG_KO } from '../src/core/names';
-import type { Mutagen, PalaceKey, Scope } from '../src/core/names';
-import { MAIN_PALACE_LINES, ROLE_LINES, STAR_PROFILES } from '../src/core/explain/stars';
+import type { PalaceKey, Scope } from '../src/core/names';
+import { MAIN_PALACE_LINES, STAR_PROFILES } from '../src/core/explain/stars';
+import { ROLE_META, ROLE_PALACE_LINES } from '../src/core/explain/roles';
 import { PALACES } from '../src/core/explain/palaces';
 import {
-  LENGTH_LIMITS, buildSummary, composeStar, explainPalace, brightnessText, mutagenText, sajuPalaceText,
+  buildSummary, composeStar, explainPalace, brightnessText, mutagenText, sajuPalaceText,
 } from '../src/core/explain/compose';
-import type { BlockKind, StarContext } from '../src/core/explain/compose';
+import type { StarContext } from '../src/core/explain/compose';
 import type { Brightness7 } from '../src/core/brightness';
 import { buildView, viewForDecade, decadalList } from '../src/core/chart';
 import { lunarJavascriptEngine } from '../src/core/saju';
@@ -49,7 +50,7 @@ describe('R-07 범위: 별 이름 전부에 해설이 있다', () => {
     for (const k of keys.filter((x) => STAR_META[x].group === 'main')) {
       expect(Object.keys(MAIN_PALACE_LINES[k]).sort()).toEqual([...PALACE_KEYS].sort());
     }
-    for (const role of Object.keys(ROLE_LINES)) expect(ROLE_LINES[role as keyof typeof ROLE_LINES].length).toBeGreaterThan(0);
+    for (const role of Object.keys(ROLE_META)) expect(Object.keys(ROLE_PALACE_LINES[role as keyof typeof ROLE_PALACE_LINES])).toHaveLength(12);
     for (const k of PALACE_KEYS) expect(PALACES[k].topic.length).toBeGreaterThan(5);
   });
 });
@@ -60,7 +61,8 @@ describe('V-10 반응성: 밝기·사화·운 모드·궁에 따라 문장이 �
     expect(new Set(B7.map((b) => brightnessText(p, b, '7'))).size).toBe(7);
     expect(new Set(B7.map((b) => brightnessText(p, b, '5'))).size).toBe(5);
     expect(brightnessText(p, 'miao', '5')).toContain("'묘'로");
-    expect(brightnessText(p, 'xian', '5')).toContain('보완이 필요합니다');
+    expect(brightnessText(p, 'xian', '5')).toContain('보완하면 도움이 됩니다');
+    expect(brightnessText(p, 'xian', '5')).toContain('힘이 가장 약한 자리입니다');
   });
 
   it('사화: 네 가지가 모두 다르고, 운 모드마다 접두어와 시기 표현이 달라진다', () => {
@@ -109,69 +111,18 @@ describe('V-10 반응성: 밝기·사화·운 모드·궁에 따라 문장이 �
   });
 });
 
-describe('V-11 길이 균일(I-13)·궁별 다양성(I-14)', () => {
-  it('모든 조합(별 66 × 궁 12 × 본명궁 12 × 운 6 × 밝기 7 × 사화 5 × 모드 2)의 블록이 길이 범위 안에 있고 용어 표시가 유효하다', () => {
-    const outOfRange: string[] = [];
-    const stats: Record<string, number[]> = {};
-    let blocks = 0;
-    for (const key of Object.keys(STAR_META)) {
-      const prof = STAR_PROFILES[key];
-      const bs: (Brightness7 | undefined)[] = prof.strength ? [undefined, ...B7] : [undefined];
-      const tags: (Mutagen | undefined)[] = ['左輔', '右弼', '文昌', '文曲'].includes(key) || STAR_META[key].group === 'main' ? [undefined, ...MUTAGENS] : [undefined];
-      for (const scope of SCOPES) {
-        for (const scoped of PALACE_KEYS) {
-          for (const natal of PALACE_KEYS) {
-            if (scope === 'natal' && natal !== scoped) continue;
-            for (const b of bs) {
-              for (const m of tags) {
-                for (const mode of ['5', '7'] as const) {
-                  if (b && mode === '5' && b === 'de') continue;
-                  const r = composeStar(
-                    { key, brightness: b, mutagens: m ? [{ mutagen: m, scope }] : [] },
-                    ctxOf(scope, scoped, natal, mode),
-                  );
-                  for (const blk of r.blocks) {
-                    blocks++;
-                    const text = plain(blk.text);
-                    const len = charLength(text);
-                    const [lo, hi] = LENGTH_LIMITS[blk.kind as BlockKind];
-                    (stats[blk.kind] ??= []).push(len);
-                    if (len < lo || len > hi) outOfRange.push(`${key} ${blk.kind} ${scope} ${scoped}/${natal} ${len}자: ${text}`);
-                    for (const t of termsIn(blk.text)) if (!GLOSSARY[t]) outOfRange.push(`미등록 용어 ${t}`);
-                    if (/undefined|\[object|NaN|\{\{|\}\}/.test(text) || /\s{2,}/.test(text) || / [,.]/.test(text)) outOfRange.push(`서식 이상: ${text}`);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    expect(blocks).toBeGreaterThan(50000);
-    // 길이 통계(원장 I-13: 사이트 해설 주성 297~2,645자 대 길성 85~642자) — 이 구현의 블록 길이 범위를 기록
-    const summary = Object.fromEntries(Object.entries(stats).map(([k, v]) => {
-      const s = [...v].sort((a, b) => a - b);
-      return [k, { min: s[0], median: s[Math.floor(s.length / 2)], max: s[s.length - 1] }];
-    }));
-    // eslint-disable-next-line no-console
-    console.log('LENGTH_STATS', JSON.stringify(summary));
-    const uniq = Array.from(new Set(outOfRange.map((x) => x.replace(/ (natal|decadal|yearly|monthly|daily|hourly) \w+\/\w+ /, ' ')))).sort();
-    // eslint-disable-next-line no-console
-    console.log('OUT_OF_RANGE', uniq.length, JSON.stringify(uniq.slice(0, 40), null, 0));
-    expect(outOfRange.slice(0, 12)).toEqual([]);
-  });
-
-  it('같은 별의 12궁 풀이는 모두 다르다 — 별 66개 × 12궁 = 792개 중 중복 0 (사이트: 44개 중 7개만 궁에 반응)', () => {
-    let distinct = 0;
-    let total = 0;
-    for (const key of Object.keys(STAR_META)) {
+describe('V-11 궁별 다양성(I-14) — 분량 균일(I-13)은 사용자 결정으로 목표에서 뺐다(설계서 부록 B, 문장 규칙은 readability.test.ts)', () => {
+  it('주성의 12궁 풀이는 모두 다르다(14 × 12 = 168, 중복 0). 그 밖의 별은 역할 × 궁 문장(13 × 12 = 156)이 궁마다 다르다', () => {
+    for (const key of Object.keys(STAR_META).filter((k) => STAR_META[k].group === 'main')) {
       const bodies = PALACE_KEYS.map((pk) => composeStar({ key, mutagens: [] }, ctxOf('natal', pk, pk)).blocks[1].text);
-      distinct += new Set(bodies).size;
-      total += 12;
       expect(new Set(bodies).size, key).toBe(12);
     }
-    expect(distinct).toBe(total);
-    expect(total).toBe(792);
+    const lines = new Set<string>();
+    for (const [role, byPalace] of Object.entries(ROLE_PALACE_LINES)) {
+      expect(new Set(Object.values(byPalace)).size, role).toBe(12);
+      for (const l of Object.values(byPalace)) lines.add(l);
+    }
+    expect(lines.size).toBe(156);
   });
 
   it('같은 궁의 서로 다른 주성 풀이도 겹치지 않는다(14 × 12 = 168문장 전부 유일)', () => {
@@ -180,36 +131,7 @@ describe('V-11 길이 균일(I-13)·궁별 다양성(I-14)', () => {
     expect(all.size).toBe(168);
   });
 
-  it('궁 개요·궁별 사주 대응·조합 해설 길이가 범위 안이다', () => {
-    const chart = makeChart(1990, 1, 30, 6, 'M');
-    const saju = lunarJavascriptEngine.compute({
-      instantUtcMs: chart.norm.instantUtcMs, clock: chart.norm.corrected!, hourKnown: true, gender: 'M', lateZi: 'next',
-    });
-    const lens: number[] = [];
-    for (const k of PALACE_KEYS) {
-      const o = charLength(plain(PALACES[k].overview));
-      expect(o, `${k} 개요 ${o}자`).toBeGreaterThanOrEqual(LENGTH_LIMITS.overview[0]);
-      expect(o, `${k} 개요 ${o}자`).toBeLessThanOrEqual(LENGTH_LIMITS.overview[1]);
-      for (const g of ['M', 'F'] as const) {
-        const t = charLength(plain(sajuPalaceText(k, saju, g)));
-        lens.push(t);
-        expect(t, `${k} ${g} 사주 ${t}자`).toBeGreaterThanOrEqual(LENGTH_LIMITS.palaceSaju[0]);
-        expect(t, `${k} ${g} 사주 ${t}자`).toBeLessThanOrEqual(LENGTH_LIMITS.palaceSaju[1]);
-      }
-    }
-    // eslint-disable-next-line no-console
-    console.log('PALACE_SAJU_LEN', Math.min(...lens), Math.max(...lens));
-    // 모든 칸의 조합 해설
-    for (let b = 0; b < 12; b++) {
-      for (const c of explainPalace(chart, buildView(chart, 'natal', null), b, { saju, mode: '5' }).combos) {
-        const t = charLength(plain(c.text));
-        expect(t, `${c.name} ${t}자`).toBeGreaterThanOrEqual(LENGTH_LIMITS.combo[0]);
-        expect(t, `${c.name} ${t}자`).toBeLessThanOrEqual(LENGTH_LIMITS.combo[1]);
-      }
-    }
-  });
-
-  it('모든 조합 해설(주성 동궁 24 + 보좌·살성 + 협 + 격국)의 문장이 길이 범위 안이다', async () => {
+  it('주성 동궁 조합 24종이 등록돼 있다', async () => {
     const mod = await import('../src/core/explain/combos');
     expect(mod.MAIN_PAIR_COUNT).toBe(24);
   });
@@ -236,11 +158,12 @@ describe('궁 단위 해설(T6)', () => {
   it('명궁(申): 녹존 + 천마 → 녹마교치, 사주 대응 문장에 이 명식의 일간(乙)이 들어간다', () => {
     const p = at(chart.meta.soulBranch);
     expect(p.combos.map((c) => c.name)).toContain('녹마교치');
-    expect(plain(p.sajuLine)).toContain('을(乙, 음목)');
-    expect(plain(p.sajuLine)).toContain('월지는 축');
+    expect(plain(p.sajuLine)).toContain('이 사주의 일간은 을(乙)');
+    expect(plain(p.sajuLine)).toContain('풀과 덩굴처럼 부드럽고 끈질긴 성향');
+    expect(plain(p.sajuLine)).toContain('태어난 달은 축(丑)월(늦겨울)');
     // 개수 표현: 0개도 같은 형식
-    expect(plain(at(chart.palaces.find((x) => x.natalName === 'siblings')!.branch).sajuLine)).toContain('이 명식의 비겁은 0개입니다');
-    expect(plain(at(chart.palaces.find((x) => x.natalName === 'fortune')!.branch).sajuLine)).toContain('식상은 3개, 인성은 1개입니다');
+    expect(plain(at(chart.palaces.find((x) => x.natalName === 'siblings')!.branch).sajuLine)).toContain('이 사주에는 비겁이 하나도 없습니다');
+    expect(plain(at(chart.palaces.find((x) => x.natalName === 'fortune')!.branch).sajuLine)).toContain('식상은 3개로 많은 편입니다. 인성은 1개로 적은 편입니다');
     const lok = p.stars.find((s) => s.key === '祿存')!;
     expect(lok.blocks.map((b) => b.kind)).toContain('saju');
     expect(plain(lok.blocks.find((b) => b.kind === 'saju')!.text)).toContain('경(庚)의 건록은 신(申)');
@@ -272,7 +195,8 @@ describe('궁 단위 해설(T6)', () => {
     expect(p.scopeNote).toContain('{{대한}} 기준 명궁에 해당합니다');
     const allFlow = Array.from({ length: 12 }, (_, b) => explainPalace(chart, v, b, { saju, mode: '5' }).flowNotes).flat();
     expect(allFlow.length).toBeGreaterThanOrEqual(10); // 대한 유성 10종이 각 칸에 흩어진다
-    expect(allFlow.join(' ')).toContain('대한 녹존');
+    expect(plain(allFlow.join(' '))).toContain('대한 녹존');
+    expect(allFlow.join(' ')).toContain('{{대한}} 녹존');
     const other = explainPalace(chart, v, chart.meta.soulBranch, { saju, mode: '5' });
     expect(other.title).toBe('형제궁'); // 본명 명궁(申)은 이 대한에서 형제궁
     expect(other.subtitle).toContain('본명 명궁');

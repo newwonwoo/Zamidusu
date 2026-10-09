@@ -1,5 +1,6 @@
 // 사주 비교 탭의 데이터(N-01, D-03). 원장 §5 근거표 C-1~C-5, D-1~D-5 를 새 문장으로 옮기고,
-// 항목마다 근거 구분과 “이 명식에서 실제로 계산한 값”을 붙인다.
+// 항목마다 근거 구분과 “이 사주에서 실제로 계산한 값”을 붙인다.
+// 본문·실측 문장 안의 {{용어}} 표시는 glossary.ts 의 용어를 가리킨다(화면이 처음 나올 때 풀이를 붙인다).
 //   근거 구분: 코드·시험 검증 / 화면 관찰 / 자료 인용 / 전통 표 인용  (원장 §7 품질확인서와 같은 구분)
 
 import type { Chart } from './chart';
@@ -95,7 +96,7 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
   if (!yearSame) {
     level = 'year-differs';
     lines.push(
-      `이 생일은 음력 설${newYear ? `(${fmtDateKo(newYear)})` : ''}과 입춘(${fmtInstant(lichunMs, tz)}) 사이에 있어 해가 바뀐 시점이 두 체계에서 다릅니다.`,
+      `이 생일은 음력 설${newYear ? `(${fmtDateKo(newYear)})` : ''}과 입춘(${fmtInstant(lichunMs, tz)}) 사이에 있습니다. 그래서 해가 바뀐 시점이 두 체계에서 다릅니다.`,
     );
     lines.push(
       m.yearStem === saju.year.stem
@@ -106,7 +107,7 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
     );
   } else if (!monthSame) {
     level = 'month-differs';
-    lines.push('연주는 같지만, 사주의 월은 절기(월건)로, 자미두수의 월은 음력 날짜로 정해서 달 이름이 서로 맞지 않습니다. 정상적인 차이입니다.');
+    lines.push('{{연주}}는 같지만 달은 다르게 셉니다. 사주의 월은 절기로 정하며 이를 {{월건}}이라 부릅니다. 자미두수의 월은 음력 날짜로 정합니다. 그래서 달 이름이 서로 맞지 않는 것은 정상적인 차이입니다.');
   } else {
     lines.push('이 생일은 두 체계의 연·월 기준이 우연히 같습니다.');
   }
@@ -151,11 +152,11 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
 
   items.push({
     id: 'C-1', side: 'common', primary: 'source',
-    title: '같은 뿌리: 천간·지지·음양오행',
-    body: '두 체계 모두 열 개의 천간과 열두 개의 지지, 그리고 음양오행이라는 같은 기호로 시간을 읽습니다. 그래서 한쪽의 간지 글자를 다른 쪽에서도 같은 뜻으로 알아볼 수 있습니다.',
+    title: '같은 뿌리에서 나온 두 체계입니다',
+    body: '두 체계 모두 열 개의 윗글자(갑·을·병…)와 열두 개의 아랫글자(자·축·인…)를 씁니다. 목·화·토·금·수의 {{오행}}이라는 같은 기호로 시간을 읽습니다. 그래서 한쪽의 {{간지}} 글자를 다른 쪽에서도 같은 뜻으로 알아볼 수 있습니다.',
     evidence: [{ kind: 'source', detail: '위키백과 — 두 체계가 같은 기반을 쓴다고 설명' }],
     live: [
-      { status: 'info', text: `이 명식의 사주 일간은 ${stemName(dayStem)}(${ELEMENT_KO[STEM_ELEMENT[dayStem]]}), 자미두수 명궁은 ${gz(chart.palaces[m.soulBranch].stem, m.soulBranch)}입니다. 둘 다 같은 천간·지지 글자를 씁니다.` },
+      { status: 'info', text: `이 사주의 {{일간}}은 ${stemName(dayStem)}(${ELEMENT_KO[STEM_ELEMENT[dayStem]]}), 자미두수 명궁은 ${gz(chart.palaces[m.soulBranch].stem, m.soulBranch)}입니다. 둘 다 같은 윗글자·아랫글자를 씁니다.` },
     ],
   });
 
@@ -163,15 +164,15 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
   items.push({
     id: 'C-2', side: 'common', primary: 'code',
     title: '10년 운의 방향 규칙이 같습니다',
-    body: '양의 해에 태어난 남자와 음의 해에 태어난 여자는 순행(앞으로), 음의 해의 남자와 양의 해의 여자는 역행(거꾸로)으로 움직입니다. 연간의 음양과 성별만 보면 되는 같은 규칙입니다.',
+    body: '양의 해에 태어난 남자와 음의 해에 태어난 여자는 앞으로(순행) 움직입니다. 음의 해의 남자와 양의 해의 여자는 거꾸로(역행) 움직입니다. 태어난 해의 음양과 성별만 보면 되는 같은 규칙입니다.',
     evidence: [
       { kind: 'code', detail: '1984-01-30(음년 남) 역행을 사이트와 iztro가 일치 확인 (원장)' },
       { kind: 'code', part: '이 구현', detail: '무작위 300건에서 연간이 같을 때 두 방향이 모두 일치 (V-13)' },
     ],
     live: [
       { status: sameStem ? (saju.daeun.forward === m.decadalForward ? 'match' : 'differ') : 'differ',
-        text: `사주 대운: ${saju.daeun.forward ? '순행' : '역행'}(연간 ${stemName(saju.year.stem)}) · 자미두수 대한: ${m.decadalForward ? '순행' : '역행'}(연간 ${stemName(m.yearStem)})` },
-      ...(sameStem ? [] : [{ status: 'info' as const, text: '연간이 서로 달라 방향도 달라졌습니다. 규칙이 다른 것이 아니라 해가 바뀌는 기준이 달라서입니다.' }]),
+        text: `사주 {{대운}}: ${saju.daeun.forward ? '순행' : '역행'}(태어난 해 ${stemName(saju.year.stem)}) · 자미두수 {{대한}}: ${m.decadalForward ? '순행' : '역행'}(태어난 해 ${stemName(m.yearStem)})` },
+      ...(sameStem ? [] : [{ status: 'info' as const, text: '태어난 해가 두 체계에서 서로 달라 방향도 달라졌습니다. 규칙이 다른 것이 아니라 해가 바뀌는 기준이 달라서입니다.' }]),
     ],
   });
 
@@ -183,39 +184,39 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
   items.push({
     id: 'C-3', side: 'common', primary: 'code',
     title: '녹존·천마·천괴·천월은 사주와 같은 표에서 나옵니다',
-    body: '녹존은 연간의 건록, 천마는 연지의 역마, 천괴와 천월은 연간의 천을귀인과 같은 자리입니다. 이름은 달라도 사주의 신살과 자미두수의 별이 같은 계산을 공유합니다.',
+    body: '녹존은 태어난 해의 윗글자로 정해지는 {{건록}} 자리와 같습니다. 천마는 태어난 해의 띠로 정해지는 {{역마}} 자리와 같습니다. 천괴와 천월은 {{천을귀인}} 자리와 같습니다. 이름은 달라도 사주와 자미두수가 같은 계산을 공유합니다.',
     evidence: [
       { kind: 'code', detail: '1930~2020년 91개 연도 모두 일치 (원장 T7)' },
       { kind: 'code', part: '이 구현', detail: '같은 91개 연도를 다시 대조 (V-13)' },
     ],
     live: [
-      { status: luPos === lokBranchOf(m.yearStem) ? 'match' : 'differ', text: `녹존 ${branchName(luPos)}궁 = 연간 ${stemName(m.yearStem)}의 건록 ${branchName(lokBranchOf(m.yearStem))}` },
-      { status: maPos === yeokmaBranchOf(m.yearBranch) ? 'match' : 'differ', text: `천마 ${branchName(maPos)}궁 = 연지 ${branchName(m.yearBranch)}의 역마 ${branchName(yeokmaBranchOf(m.yearBranch))}` },
+      { status: luPos === lokBranchOf(m.yearStem) ? 'match' : 'differ', text: `녹존 ${branchName(luPos)}궁 = 태어난 해 ${stemName(m.yearStem)}의 {{건록}} ${branchName(lokBranchOf(m.yearStem))}` },
+      { status: maPos === yeokmaBranchOf(m.yearBranch) ? 'match' : 'differ', text: `천마 ${branchName(maPos)}궁 = 태어난 해의 띠 ${branchName(m.yearBranch)}의 {{역마}} ${branchName(yeokmaBranchOf(m.yearBranch))}` },
       { status: [kuiPos, yuePos].sort().join() === [...cheoneul].sort((a, b) => a - b).join() ? 'match' : 'differ',
-        text: `천괴·천월 ${branchName(kuiPos)}·${branchName(yuePos)}궁 = 연간 ${stemName(m.yearStem)}의 천을귀인 ${branchName(cheoneul[0])}·${branchName(cheoneul[1])}` },
+        text: `천괴·천월 ${branchName(kuiPos)}·${branchName(yuePos)}궁 = 태어난 해 ${stemName(m.yearStem)}의 {{천을귀인}} ${branchName(cheoneul[0])}·${branchName(cheoneul[1])}` },
     ],
   });
 
   const soulStage = chart.palaces[m.soulBranch].twelve.changsheng;
   items.push({
     id: 'C-4', side: 'common', primary: 'screen',
-    title: '12운성 이름을 함께 씁니다',
-    body: '장생·목욕·관대·임관(건록)·제왕·쇠·병·사·묘·절·태·양, 열두 단계의 이름을 두 체계가 같이 씁니다. 자미두수에서는 이를 장생12신이라 부르며, 사주의 건록은 자미두수에서 임관이라 적습니다.',
+    title: '‘장생·목욕·관대…’ 열두 단계 이름을 함께 씁니다',
+    body: '장생·목욕·관대·임관·제왕·쇠·병·사·묘·절·태·양, 열두 단계의 이름을 두 체계가 같이 씁니다. 사주에서는 {{12운성}}, 자미두수에서는 {{장생12신}}이라 부릅니다. 사주의 {{건록}}은 자미두수에서 임관이라 적습니다.',
     evidence: [{ kind: 'screen', detail: '사이트 화면의 ‘포태 12신’ 표기 (원장)' }],
     live: [
-      { status: 'info', text: `사주: 일간 ${stemName(dayStem)} 기준 년·월·일·시지의 12운성 = ${[saju.year, saju.month, saju.day, ...(saju.hour ? [saju.hour] : [])].map((p) => p.stage).join('·')}` },
-      { status: 'info', text: `자미두수: 명궁 칸의 장생12신 = ${soulStage === '長生' ? '장생' : soulStage}` },
+      { status: 'info', text: `사주: {{일간}} ${stemName(dayStem)} 기준 년·월·일·시의 {{12운성}} = ${[saju.year, saju.month, saju.day, ...(saju.hour ? [saju.hour] : [])].map((p) => p.stage).join('·')}` },
+      { status: 'info', text: `자미두수: 명궁 칸의 {{장생12신}} = ${soulStage === '長生' ? '장생' : soulStage}` },
     ],
   });
 
   const s = surround(m.soulBranch);
   items.push({
     id: 'C-5', side: 'common', primary: 'screen',
-    title: '삼방사정은 삼합과 충의 구조입니다',
-    body: '한 칸을 읽을 때 함께 보는 삼방사정은 사주의 삼합(세 지지가 이루는 한 묶음)과 충(맞은편)의 관계와 같은 구조입니다. 기준 칸에서 네 칸·여덟 칸 떨어진 곳이 삼합, 여섯 칸 맞은편이 충입니다.',
+    title: '함께 읽는 칸의 구조가 사주와 같습니다',
+    body: '한 칸을 읽을 때 함께 보는 {{삼방사정}}은 사주의 {{삼합}}·{{충}} 관계와 같은 구조입니다. 기준 칸에서 네 칸·여덟 칸 떨어진 곳이 {{삼합}}, 여섯 칸 맞은편이 {{충}}입니다.',
     evidence: [{ kind: 'screen', detail: '사이트 화면 스크립트의 +4, +8, +6 (원장 R-04)' }],
     live: [
-      { status: 'info', text: `이 명식의 명궁 ${branchName(m.soulBranch)}궁: 삼합 ${branchName(s.trine[0])}·${branchName(s.trine[1])}, 충 ${branchName(s.opposite)}` },
+      { status: 'info', text: `이 사주의 명궁 ${branchName(m.soulBranch)}궁: {{삼합}} ${branchName(s.trine[0])}·${branchName(s.trine[1])}, {{충}} ${branchName(s.opposite)}` },
     ],
   });
 
@@ -229,7 +230,7 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
     ],
     live: [
       { status: yearSame ? 'match' : 'differ', text: `연: 사주 ${saju.year.ganzhi}년 / 자미두수 ${ziYear}년` },
-      { status: monthSame ? 'match' : 'differ', text: `월: 사주 ${saju.month.ganzhi}월(월건) / 자미두수 ${ziMonthLabel}` },
+      { status: monthSame ? 'match' : 'differ', text: `월: 사주 ${saju.month.ganzhi}월 / 자미두수 ${ziMonthLabel}` },
     ],
   });
 
@@ -237,29 +238,29 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
   items.push({
     id: 'D-2', side: 'diff', primary: 'tradition',
     title: '같은 이름, 다른 규칙: 문창',
-    body: '문창은 사주에서는 일간을 기준으로 정하는 귀인이고, 자미두수에서는 태어난 시를 기준으로 놓는 별입니다. 이름이 같아도 위치가 다르게 나오는 것이 정상입니다.',
+    body: '문창은 사주에서는 {{일간}}을 기준으로 정하는 귀인이고, 자미두수에서는 태어난 시를 기준으로 놓는 별입니다. 이름이 같아도 위치가 다르게 나오는 것이 정상입니다.',
     evidence: [
       { kind: 'code', part: '자미두수 쪽', detail: 'T6 명반에서 확인(辰)' },
       { kind: 'tradition', part: '사주 쪽', detail: '전통 귀인 표 인용 (코드 미검증)' },
     ],
     live: [
       { status: MUNCHANG_BRANCH[dayStem] === munchangZi ? 'match' : 'differ',
-        text: `사주 문창귀인: 일간 ${stemName(dayStem)} → ${branchName(MUNCHANG_BRANCH[dayStem])} / 자미두수 문창: ${BRANCHES_KO[m.timeBranch]}시 → ${branchName(munchangZi)}궁` },
+        text: `사주 문창귀인: {{일간}} ${stemName(dayStem)} → ${branchName(MUNCHANG_BRANCH[dayStem])} / 자미두수 문창: ${BRANCHES_KO[m.timeBranch]}시 → ${branchName(munchangZi)}궁` },
     ],
   });
 
   const zStart = chart.palaces.find((p) => p.twelve.changsheng === '長生')!.branch;
   items.push({
     id: 'D-3', side: 'diff', primary: 'code',
-    title: '장생의 기준이 다릅니다: 일간 대 오행국',
-    body: '사주의 12운성은 일간에서 출발하고, 자미두수의 장생은 오행국에서 출발합니다. 같은 “장생”이라도 시작하는 자리가 다릅니다.',
+    title: '‘장생’의 출발점이 다릅니다',
+    body: '사주의 {{12운성}}은 {{일간}}에서 출발하고, 자미두수의 장생은 {{오행국}}에서 출발합니다. 같은 “장생”이라도 시작하는 자리가 다릅니다.',
     evidence: [
       { kind: 'code', detail: '장생12신 시작 위치가 오행국으로 정해짐 (원장 R-06)' },
       { kind: 'code', part: '이 구현', detail: '무작위 300건 대조 (V-13)' },
     ],
     live: [
       { status: CHANGSHENG_BRANCH[dayStem] === zStart ? 'match' : 'differ',
-        text: `사주: 일간 ${stemName(dayStem)}의 장생 ${branchName(CHANGSHENG_BRANCH[dayStem])} / 자미두수: ${m.fiveElements.ko}의 장생 ${branchName(zStart)}` },
+        text: `사주: {{일간}} ${stemName(dayStem)}의 장생 ${branchName(CHANGSHENG_BRANCH[dayStem])} / 자미두수: ${m.fiveElements.ko}의 장생 ${branchName(zStart)}` },
     ],
   });
 
@@ -267,7 +268,7 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
   items.push({
     id: 'D-4', side: 'diff', primary: 'code',
     title: '10년 운이 시작되는 나이가 다릅니다',
-    body: '사주는 태어난 날부터 가장 가까운 절기까지의 날수를 3으로 나눈 값이 첫 대운의 시작 나이입니다. 자미두수는 오행국의 숫자(2~6)가 첫 대한의 시작 나이입니다.',
+    body: '사주는 태어난 날부터 가장 가까운 절기까지의 날수를 3으로 나눈 값이 첫 {{대운}}의 시작 나이입니다. 자미두수는 {{오행국}}의 숫자(2~6)가 첫 {{대한}}의 시작 나이입니다.',
     evidence: [
       { kind: 'code', part: '자미두수 쪽', detail: '시작 나이가 오행국으로 정해짐 (원장 R-06, 이 구현 V-13)' },
       { kind: 'source', part: '사주 쪽', detail: '일반 이론 인용 — 3일을 1년으로 환산' },
@@ -282,10 +283,10 @@ export const buildComparison = (chart: Chart, saju: SajuChart, tz: string): Comp
   items.push({
     id: 'D-5', side: 'diff', primary: 'source',
     title: '그림의 모양이 다릅니다: 8글자 대 12칸',
-    body: '사주는 여덟 글자가 이루는 균형(오행과 십성)을 보고, 자미두수는 열두 칸 위에 놓인 100여 개 별의 배치를 봅니다. 같은 사람을 서로 다른 지도로 그리는 셈입니다.',
+    body: '사주는 여덟 글자가 이루는 균형을 {{오행}}과 {{십성}}으로 봅니다. 자미두수는 열두 칸 위에 놓인 100여 개 별의 배치를 봅니다. 같은 사람을 서로 다른 지도로 그리는 셈입니다.',
     evidence: [{ kind: 'source', detail: '위키백과 — 구조·분석 방식의 차이' }],
     live: [
-      { status: 'info', text: `사주: 오행 ${elements.map((e) => `${e.ko}${e.count}`).join(' ')} (천간 + 지지 본기 ${saju.hour ? 8 : 6}글자)` },
+      { status: 'info', text: `사주: {{오행}} ${elements.map((e) => `${e.ko}${e.count}`).join(' ')} (윗글자 + 아랫글자의 중심 기운 ${saju.hour ? 8 : 6}글자)` },
       { status: 'info', text: `자미두수: 열두 칸에 주성 14개를 포함해 별 ${starCount}개가 배치됨` },
     ],
   });

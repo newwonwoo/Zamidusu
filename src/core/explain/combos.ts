@@ -65,7 +65,7 @@ export const detectCombos = (chart: Chart, branch: number): ComboHit[] => {
       if (hit) {
         hits.push({
           id: `pair:${mains[i]}${mains[j]}`, name: hit[0], hanja: hit[1], kind: 'pair',
-          where: '같은 칸({{동궁}})', text: hit[2], stars: [mains[i], mains[j]],
+          where: '{{동궁}}', text: hit[2], stars: [mains[i], mains[j]],
         });
       }
     }
@@ -74,27 +74,27 @@ export const detectCombos = (chart: Chart, branch: number): ComboHit[] => {
   // 2) 보좌·살성 동궁 조합
   if (keys.has('天馬') && (keys.has('祿存') || hasLu)) {
     hits.push({
-      id: 'lumaa', name: '녹마교치', hanja: '祿馬交馳', kind: 'together', where: '같은 칸({{동궁}})',
+      id: 'lumaa', name: '녹마교치', hanja: '祿馬交馳', kind: 'together', where: '{{동궁}}',
       text: '재물의 기회와 이동의 힘이 한 칸에서 만났습니다. 가만히 있기보다 움직일 때 이득이 생기기 쉬운 구도입니다.',
       stars: ['天馬', keys.has('祿存') ? '祿存' : '化祿'],
     });
   }
   if (keys.has('祿存') && palace.stars.some((s) => s.mutagen === 'lu' && s.key !== '祿存')) {
     hits.push({
-      id: 'doublelu', name: '쌍록', hanja: '雙祿', kind: 'together', where: '같은 칸({{동궁}})',
-      text: '녹존과 화록이 함께 있어 재물의 흐름이 두 겹으로 받쳐 줍니다. 모으고 지키는 힘이 큽니다.',
+      id: 'doublelu', name: '쌍록', hanja: '雙祿', kind: 'together', where: '{{동궁}}',
+      text: '녹존과 {{화록}}이 함께 있어 재물의 흐름이 두 겹으로 받쳐 줍니다. 모으고 지키는 힘이 큽니다.',
       stars: ['祿存', '化祿'],
     });
   }
   if (keys.has('貪狼') && keys.has('火星')) {
     hits.push({
-      id: 'huotan', name: '화탐', hanja: '火貪', kind: 'together', where: '같은 칸({{동궁}})',
+      id: 'huotan', name: '화탐', hanja: '火貪', kind: 'together', where: '{{동궁}}',
       text: '탐랑의 욕구에 불꽃이 붙은 구도입니다. 갑작스러운 기회와 폭발력이 있지만 기복도 큽니다.', stars: ['貪狼', '火星'],
     });
   }
   if (keys.has('貪狼') && keys.has('鈴星')) {
     hits.push({
-      id: 'lingtan', name: '영탐', hanja: '鈴貪', kind: 'together', where: '같은 칸({{동궁}})',
+      id: 'lingtan', name: '영탐', hanja: '鈴貪', kind: 'together', where: '{{동궁}}',
       text: '탐랑의 욕구에 숨은 불씨가 붙은 구도입니다. 때를 만나면 크게 터지는 대신 참았던 마음이 한꺼번에 나올 수 있습니다.', stars: ['貪狼', '鈴星'],
     });
   }
@@ -107,7 +107,7 @@ export const detectCombos = (chart: Chart, branch: number): ComboHit[] => {
     ['火星', '鈴星', '화령동궁', '火鈴同宮', '급한 불과 숨은 불이 만났습니다. 감정이 한꺼번에 터지지 않게 표현할 창구를 만들어 두세요.'],
   ];
   for (const [a, b, name, hanja, text] of togethers) {
-    if (has(keys, a, b)) hits.push({ id: `together:${a}${b}`, name, hanja, kind: 'together', where: '같은 칸({{동궁}})', text, stars: [a, b] });
+    if (has(keys, a, b)) hits.push({ id: `together:${a}${b}`, name, hanja, kind: 'together', where: '{{동궁}}', text, stars: [a, b] });
   }
 
   // 3) 협(夾): 양옆 칸에 한 쌍이 하나씩
@@ -122,7 +122,7 @@ export const detectCombos = (chart: Chart, branch: number): ComboHit[] => {
   ];
   for (const [a, b, name, hanja, text] of flanks) {
     if ((before.has(a) && after.has(b)) || (before.has(b) && after.has(a))) {
-      hits.push({ id: `flank:${a}${b}`, name, hanja, kind: 'flank', where: '양옆 칸({{협}})', text, stars: [a, b] });
+      hits.push({ id: `flank:${a}${b}`, name, hanja, kind: 'flank', where: '{{협}}', text, stars: [a, b] });
     }
   }
 
@@ -135,21 +135,21 @@ export const detectCombos = (chart: Chart, branch: number): ComboHit[] => {
     if (has(union, '七殺', '破軍', '貪狼')) {
       hits.push({
         id: 'sapalang', name: '살파랑', hanja: '殺破狼', kind: 'pattern', where: '{{삼방사정}}',
-        text: '칠살·파군·탐랑이 모두 삼방사정에 모인 구도입니다. 변화와 개척이 많은 삶의 흐름을 뜻하며, 안정보다 도전에서 힘을 얻는다고 봅니다.',
+        text: '칠살·파군·탐랑이 모두 {{삼방사정}}에 모인 구도입니다. 변화와 개척이 많은 삶의 흐름을 뜻하며, 안정보다 도전에서 힘을 얻는다고 봅니다.',
         stars: ['七殺', '破軍', '貪狼'],
       });
     }
     if (has(union, '天機', '太陰', '天同', '天梁')) {
       hits.push({
         id: 'gwiweol', name: '기월동량', hanja: '機月同梁', kind: 'pattern', where: '{{삼방사정}}',
-        text: '천기·태음·천동·천량이 삼방사정에 모인 구도입니다. 조직 안에서 차분하게 일하며 기획·행정·보좌에 어울린다고 봅니다.',
+        text: '천기·태음·천동·천량이 {{삼방사정}}에 모인 구도입니다. 조직 안에서 차분하게 일하며 기획·행정·보좌에 어울린다고 봅니다.',
         stars: ['天機', '太陰', '天同', '天梁'],
       });
     }
     if (has(union, '太陽', '天梁', '文昌') && (union.has('祿存') || luOnSurround)) {
       hits.push({
         id: 'yangryang', name: '양량창록', hanja: '陽梁昌祿', kind: 'pattern', where: '{{삼방사정}}',
-        text: '태양·천량·문창과 녹존(또는 화록)이 삼방사정에 모인 구도입니다. 시험·학업·공적인 일에 유리하다고 전해집니다.',
+        text: '태양·천량·문창과 녹존이나 {{화록}}이 {{삼방사정}}에 모인 구도입니다. 시험·학업·공적인 일에 유리하다고 전해집니다.',
         stars: ['太陽', '天梁', '文昌', '祿存'],
       });
     }
