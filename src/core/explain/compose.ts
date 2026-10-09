@@ -267,7 +267,7 @@ export const sajuPalaceText = (key: PalaceKey, saju: SajuChart | null, gender: '
       case 'travel': {
         const yk = yeokmaBranchOf(saju.year.branch);
         const present = [saju.year, saju.month, saju.day, ...(saju.hour ? [saju.hour] : [])].some((p) => p.branch === yk);
-        return `연지 ${BRANCHES_KO[saju.year.branch]} 기준 역마는 ${BRANCHES_KO[yk]}이고, 네 기둥의 지지에 ${present ? '있습니다' : '없습니다'}.`;
+        return `연지 ${branchLabel(saju.year.branch)} 기준 역마는 ${branchLabel(yk)}이고, 네 기둥의 지지에 ${present ? '있습니다' : '없습니다'}.`;
       }
       case 'friends':
         return `이 명식의 ${counts(saju, '비겁', '관성')}입니다.`;

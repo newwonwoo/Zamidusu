@@ -86,6 +86,7 @@ describe('V-09 역산 입력', () => {
     expect(a.status).toBe('none');
     expect(a.conflicts[0].kind).toBe('pair');
     expect(a.conflicts[0].message).toContain('짝수');
+    expect(a.conflicts[0].message).toContain('명궁 위치 자궁(子)과 신궁 위치 축궁(丑)은 함께 성립할 수 없습니다');
     // 좌보 辰(=정월)인데 우필 子: 정월의 우필은 戌
     const b = reverseSearch({ zuofu: 4, youbi: 0 });
     expect(b.status).toBe('none');

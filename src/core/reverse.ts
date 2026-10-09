@@ -3,6 +3,7 @@
 // 계산은 독립 구현(independent.ts)의 전통 공식만 쓰므로 엔진 호출 없이 즉시(수십 ms) 끝난다.
 
 import { BRANCHES, BRANCHES_KO, STEMS, STEMS_KO, isValidGanzhi, mod } from './ganzhi';
+import { josa } from './explain/korean';
 import { quickKeys, ziweiBranch } from './independent';
 import type { BirthInput, Gender } from './time';
 import { lunarToSolar } from './time';
@@ -150,7 +151,7 @@ export const reverseSearch = (c: ReverseConstraints, limit = 400): ReverseResult
           conflicts.push({
             kind: 'pair',
             keys,
-            message: `${CONSTRAINT_LABEL[keys[0]]} ${valueLabel(keys[0], c[keys[0]] as number)} 와(과) ${CONSTRAINT_LABEL[keys[1]]} ${valueLabel(keys[1], c[keys[1]] as number)} 는 함께 성립할 수 없습니다. ${pairHint(keys[0], keys[1])}`,
+            message: `${CONSTRAINT_LABEL[keys[0]]} ${josa(valueLabel(keys[0], c[keys[0]] as number), '과/와')} ${CONSTRAINT_LABEL[keys[1]]} ${josa(valueLabel(keys[1], c[keys[1]] as number), '은/는')} 함께 성립할 수 없습니다. ${pairHint(keys[0], keys[1])}`,
           });
         }
       }
@@ -163,7 +164,7 @@ export const reverseSearch = (c: ReverseConstraints, limit = 400): ReverseResult
           conflicts.push({
             kind: 'relax',
             keys: [k],
-            message: `${CONSTRAINT_LABEL[k]} ${valueLabel(k, c[k] as number)} 를 빼면 나머지 입력은 모두 성립합니다.`,
+            message: `${CONSTRAINT_LABEL[k]} ${josa(valueLabel(k, c[k] as number), '을/를')} 빼면 나머지 입력은 모두 성립합니다.`,
           });
         }
       }

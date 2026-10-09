@@ -1,0 +1,15 @@
+import { startServer, launch } from './lib.mjs';
+const [, , query = '', name = 'shot', width = '1440', height = '1000', scheme = 'light'] = process.argv;
+const server = await startServer();
+const browser = await launch();
+const ctx = await browser.newContext({ viewport: { width: +width, height: +height }, colorScheme: scheme, deviceScaleFactor: 1 });
+const page = await ctx.newPage();
+const logs = [];
+page.on('console', (m) => { if (['error', 'warning'].includes(m.type())) logs.push(`${m.type()}: ${m.text()}`); });
+page.on('pageerror', (e) => logs.push(`pageerror: ${e.message}`));
+await page.goto(server.url + (query ? `?${query}` : ''));
+await page.waitForSelector('.cell', { timeout: 10000 });
+await page.screenshot({ path: `e2e/out/${name}.png`, fullPage: true });
+console.log('logs:', JSON.stringify(logs));
+await browser.close();
+await server.stop();
