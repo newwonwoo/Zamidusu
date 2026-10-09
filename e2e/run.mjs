@@ -644,6 +644,29 @@ for (const r of results) {
   byTest[r.test][r.pass ? 'pass' : 'fail']++;
 }
 fs.writeFileSync(`${OUT}/results.json`, JSON.stringify({ total: results.length, failed: failed.length, byTest, consoleProblems, externalRequests, results }, null, 2));
+if (process.env.WRITE_REPORT) {
+  // 문서용 결과표(docs/generated/e2e-results.md). 평소에는 쓰지 않는다.   WRITE_REPORT=1 node e2e/run.mjs
+  const lines = [
+    '# 브라우저 E2E 결과 (자동 생성)',
+    '',
+    '`WRITE_REPORT=1 npm run e2e` 로 만든 목록입니다. 실제 Chromium 에서 사용자 흐름을 따라가며 확인한 항목입니다.',
+    '',
+    `- 확인 ${results.length}건 · 실패 ${failed.length}건 · 콘솔 오류/경고 ${consoleProblems.length}건 · 외부/비-GET 요청 ${externalRequests.length}건`,
+    '',
+  ];
+  const groups = new Map();
+  for (const r of results) {
+    if (!groups.has(r.test)) groups.set(r.test, []);
+    groups.get(r.test).push(r);
+  }
+  for (const [name, list] of groups) {
+    lines.push(`## ${name} — ${list.filter((x) => x.pass).length}/${list.length}건`, '');
+    for (const r of list) lines.push(`- ${r.pass ? '✓' : '✗'} ${r.check}`);
+    lines.push('');
+  }
+  fs.mkdirSync('docs/generated', { recursive: true });
+  fs.writeFileSync('docs/generated/e2e-results.md', lines.join('\n'));
+}
 console.log('\n── 결과 ──');
 for (const [t, v] of Object.entries(byTest)) console.log(`${v.fail ? '✗' : '✓'} ${t}  (통과 ${v.pass}${v.fail ? `, 실패 ${v.fail}` : ''})`);
 console.log(`확인 ${results.length}건 중 실패 ${failed.length}건 · 콘솔 오류/경고 ${consoleProblems.length}건 · 외부/비-GET 요청 ${externalRequests.length}건`);

@@ -1,0 +1,35 @@
+# 푸시·PR 마다 타입 검사, 단위 테스트(200건), 빌드, 브라우저 E2E(166건+)를 돈다.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # postinstall 이 lunar-lite 패치를 적용한다(patches/README.md). --ignore-scripts 를 쓰지 말 것
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: 브라우저 E2E (설치된 Chrome 사용)
+        run: |
+          export CHROME_PATH="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          echo "Chrome: $CHROME_PATH"
+          npm run e2e
+      - name: E2E 스크린샷·결과 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-out
+          path: e2e/out
+          retention-days: 7

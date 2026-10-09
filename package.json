@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "description": "자미두수 명반 + 사주 비교 (분석 원장 v3 기반 재구현)",
   "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -11,7 +14,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "node e2e/run.mjs",
-    "postinstall": "node scripts/apply-patches.mjs"
+    "postinstall": "node scripts/apply-patches.mjs",
+    "test:inventory": "node scripts/test-inventory.mjs",
+    "gen:lunar-kr": "node scripts/gen-lunar-kr.mjs",
+    "e2e:report": "WRITE_REPORT=1 node e2e/run.mjs",
+    "gen:notices": "node scripts/gen-notices.mjs"
   },
   "dependencies": {
     "html-to-image": "^1.11.13",

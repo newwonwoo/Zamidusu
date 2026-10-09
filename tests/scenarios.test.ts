@@ -344,6 +344,7 @@ describe('적대적 입력', () => {
         minute: pick([0, 0, 30, 59, 60]),
         placeId: pick(['standard', SEOUL, BUSAN, JEJU, TOKYO, 'abroad']),
         yearBasis: pick(['lunarNewYear', 'ipchun'] as const),
+        lunarBasis: pick(['korea', 'china'] as const),
       };
       const settings: Partial<Settings> = {
         correction: pick(['none', 'lmt', 'true'] as const),
