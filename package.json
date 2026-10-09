@@ -5,7 +5,7 @@
   "description": "자미두수 명반 + 사주 비교 (분석 원장 v3 기반 재구현)",
   "type": "module",
   "engines": {
-    "node": ">=22.12.0"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "vite",

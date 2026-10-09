@@ -10,7 +10,7 @@
 
 ## 빠른 시작
 
-Node.js **22.12 이상**이 필요합니다(`.nvmrc` = 22).
+Node.js **22.12 이상의 22.x** 가 필요합니다(`.nvmrc` = 22, `package.json` 의 `engines` = `22.x`). 다른 메이저(24 등)는 시험하지 않았습니다.
 
 ```bash
 npm ci            # 설치 + 의존성 패치 자동 적용(postinstall). --ignore-scripts 를 쓰지 마세요
@@ -20,6 +20,18 @@ npm run preview   # 빌드 결과 미리보기
 ```
 
 `dist/index.html` 은 서버 없이 **파일을 더블클릭해서 열어도** 동작하고, 하위 경로(`/Zamidusu/` 등)에 올려도 동작합니다(한 개의 스크립트로 묶어 `file://` 의 모듈 제한을 피합니다).
+
+### 배포 (정적 파일이라 새 저장소는 필요 없습니다)
+
+계산이 모두 브라우저 안에서 이루어지므로 서버가 없어도 됩니다. 이 저장소를 그대로 연결하면 됩니다.
+
+| 방법 | 설정 |
+|---|---|
+| **Vercel** | vercel.com → Add New → Project → 이 저장소 Import. Framework **Vite**(자동 감지), Build `npm run build`, Output `dist`, **Node.js 22.x**, 환경변수 없음. 설치 명령에 `--ignore-scripts` 를 쓰지 마세요(설치 때 의존성 패치가 적용됩니다). Production Branch 는 저장소의 기본 브랜치를 따릅니다 |
+| GitHub Pages | Settings → Pages → Source 를 “GitHub Actions” 로 바꾼 뒤 Actions 탭에서 `Deploy to GitHub Pages` 를 수동 실행(`.github/workflows/pages.yml`) |
+| 파일 | `npm run build` 후 `dist/index.html` 을 더블클릭 |
+
+공유 링크는 입력값을 주소의 `#` 해시에 담아 서버 접근 기록에 남지 않으므로, 호스팅 서비스의 방문 분석(Analytics) 기능은 켜지 않는 것을 권합니다. 저장소가 public 이면 `docs/` 의 역분석 원장 등 문서도 함께 공개됩니다.
 
 | 명령 | 하는 일 |
 |---|---|
