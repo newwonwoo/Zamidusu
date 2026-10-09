@@ -271,6 +271,10 @@ export const correctTime = (civil: Wall, input: BirthInput, settings: TimeSettin
 // ── 정규화 ───────────────────────────────────────────────────────────────────
 export interface NormalizedBirth {
   gender: Gender;
+  /** 입력 시계가 따르는 IANA 시간대(출생지 기준, 없으면 한국) */
+  tz: string;
+  /** 보정 전 시계 시각이 가리키는 실제 순간(UTC ms). 절기와 비교하는 연주·월주·대운 판정에 쓴다. */
+  instantUtcMs: number;
   /** 입력을 양력으로 환산한 시계 시각(보정 전). 시를 모르면 h=12, mi=0 으로 채운 날짜만 의미 있음 */
   civil: Wall;
   hourKnown: boolean;
@@ -343,12 +347,15 @@ export const normalizeBirth = (input: BirthInput, settings: TimeSettings): Norma
 
   const hourKnown = input.hour !== null;
   const civil: Wall = { ...solar, h: hourKnown ? (input.hour as number) : 12, mi: hourKnown ? input.minute : 0 };
+  const place = placeById(input.placeId);
+  const tz = input.placeId === CUSTOM_ID ? (input.customTz ?? KOREA_TZ) : (place?.tz ?? KOREA_TZ);
+  const instantUtcMs = civilToUtcMs(tz, civil);
 
   if (!hourKnown) {
     return {
       ok: true,
       value: {
-        gender: input.gender, civil, hourKnown: false, corrected: null, correction: null, engineDate: solar, timeIndex: null,
+        gender: input.gender, tz, instantUtcMs, civil, hourKnown: false, corrected: null, correction: null, engineDate: solar, timeIndex: null,
         lateZi: false, shiftedDay: false, inputCalendar: input.calendar, lunarInput, notes,
       },
     };
@@ -373,7 +380,7 @@ export const normalizeBirth = (input: BirthInput, settings: TimeSettings): Norma
   return {
     ok: true,
     value: {
-      gender: input.gender, civil, hourKnown: true, corrected, correction: detail, engineDate,
+      gender: input.gender, tz, instantUtcMs, civil, hourKnown: true, corrected, correction: detail, engineDate,
       timeIndex: hourToBranch(corrected.h), lateZi, shiftedDay, inputCalendar: input.calendar, lunarInput, notes,
     },
   };
