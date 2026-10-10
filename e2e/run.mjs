@@ -56,6 +56,11 @@ const open = async (page, params = '') => {
 };
 
 const cell = (page, branch) => page.locator(`.cell[data-branch="${branch}"]`);
+const tabBtn = (page, name) => page.getByRole('tab', { name });
+/** 통변 비교의 판정 규칙(5×5)을 화면 밖에서 독립적으로 적은 표: 행 = 자미두수 단계 −2…+2, 열 = 사주 단계 */
+const VERDICT_TABLE = { A: '일치', M: '보완', X: '엇갈림' };
+const VERDICT_ROWS = ['AAMXX', 'AAMXX', 'MMAMM', 'XXMAA', 'XXMAA'];
+const verdictText = (z, s) => VERDICT_TABLE[VERDICT_ROWS[Number(z) + 2][Number(s) + 2]];
 const run = async (name, fn) => {
   current = name;
   console.log(`▶ ${name}`);
@@ -91,6 +96,9 @@ await run('첫 화면: 예시 명반(T6) 렌더', async () => {
   await page.getByRole('button', { name: '명반 보기' }).click();
   const t1 = await page.evaluate(() => performance.now());
   check('명반 재계산·재렌더 1초 이내', t1 - t0 < 1000, `${Math.round(t1 - t0)}ms`);
+  // 첫 화면의 우측 패널은 종합 통변이다. 음성 읽기는 궁 해설 탭에 있다.
+  check('우측 패널의 첫 탭은 종합 통변이다', await tabBtn(page, '종합 통변').getAttribute('aria-selected') === 'true' && (await page.locator('[data-testid="tongbyeon-ziwei"]').count()) === 1);
+  await tabBtn(page, '궁 해설').click();
   // 음성 읽기: 재생이 시작되거나, 음성 엔진이 없으면 안내 토스트가 떠야 한다(아무 반응 없음이 아님).
   // 엔진 오류 이벤트는 비동기라 “재생 중” 상태가 잠깐 보였다 사라질 수 있으므로 경합에 견디게 확인한다.
   if (await page.getByRole('button', { name: '▶ 듣기' }).count()) {
@@ -171,24 +179,30 @@ await run('운 모드: 대한·유년·유월·유일·유시', async () => {
   await ctx.close();
 });
 
-// ── 4. 사주 비교 ────────────────────────────────────────────────────────────────
-await run('사주 비교 탭(N-01~N-03)', async () => {
+// ── 4. 사주 통변·통변 비교(원장 N-01~N-03 + 설계 부록 D) ──────────────────────────────
+await run('사주 통변·통변 비교 탭(N-01~N-03)', async () => {
   const { page, ctx } = await newPage();
   await open(page);
-  await page.getByRole('tab', { name: '사주 비교' }).click();
+  await tabBtn(page, '사주 통변').click();
+  const fold = page.locator('details.tb-saju-table');
+  check('사주 표는 접혀 있고 열면 보인다', !(await fold.evaluate((d) => d.open)));
+  await fold.locator('summary').click();
   const pillars = await page.locator('.pillars').innerText();
   check('사주 4기둥 己巳 丁丑 乙未 壬午', ['己巳', '丁丑', '乙未', '壬午'].every((g) => pillars.includes(g)), pillars);
   check('자미두수 열: 庚午년 · 음력 1월', pillars.includes('庚午년') && pillars.includes('음력 1월'), pillars);
+  await tabBtn(page, '통변 비교').click();
   const notice = await page.locator('.notice').innerText();
   check('달력 기준 알림 문장', notice.includes('사주는 己巳년 丁丑월') && notice.includes('庚午년 음력 1월 4일') && notice.includes('입춘'), notice);
-  check('공통점 5 · 차이점 5 카드', (await page.locator('.cmp-card.common').count()) === 5 && (await page.locator('.cmp-card.diff').count()) === 5);
+  const theory = page.locator('details.tb-theory');
+  check('이론 비교(공통점 5·차이점 5)는 접혀 있다', !(await theory.evaluate((d) => d.open)) && (await page.locator('.cmp-card.common').count()) === 5 && (await page.locator('.cmp-card.diff').count()) === 5);
+  await theory.locator(':scope > summary').click();
   check('근거 구분 배지 4종이 모두 쓰인다', (await page.locator('.ev-code').count()) > 0 && (await page.locator('.ev-screen').count()) > 0
     && (await page.locator('.ev-source').count()) > 0 && (await page.locator('.ev-tradition').count()) > 0);
   const d4 = await page.locator('.cmp-card[data-id="D-4"]').innerText();
   check('D-4 실측값: 사주 대운수 8 대 자미두수 2세', d4.includes('대운수 8') && d4.includes('첫 대한 2세'), d4);
   const c3 = await page.locator('.cmp-card[data-id="C-3"] .live-match').count();
   check('C-3 은 세 줄 모두 일치 표시', c3 === 3, c3);
-  check('2단계 자리표시(준비 중)', (await page.locator('.stage2').innerText()).includes('준비 중'));
+  check('옛 “2단계 준비 중” 자리표시가 사라졌다', (await page.locator('.stage2').count()) === 0 && !(await page.locator('[data-testid="tongbyeon-compare"]').innerText()).includes('준비 중'));
   await page.screenshot({ path: `${OUT}/04-saju.png`, fullPage: true });
   // 연도 기준을 입춘으로
   await page.locator('.basis input[type="radio"]').nth(1).check();
@@ -200,10 +214,151 @@ await run('사주 비교 탭(N-01~N-03)', async () => {
   await ctx.close();
 });
 
+// ── 4-0. 종합 통변·사주 통변·통변 비교(설계 부록 D, 요구 T-01~T-12) ─────────────────────
+await run('통변(T-01~T-12): 종합 통변 · 사주 통변 · 통변 비교의 구성과 서로의 일치', async () => {
+  const { page, ctx } = await newPage();
+  const tPaint0 = Date.now();
+  await open(page);
+  await page.waitForSelector('[data-testid="tongbyeon-ziwei"]');
+  const paintMs = Date.now() - tPaint0;
+  check('첫 화면에 종합 통변이 3초 안에 나온다', paintMs < 3000, `${paintMs}ms`);
+
+  // ── 종합 통변(자미두수) ──
+  const zi = page.locator('[data-testid="tongbyeon-ziwei"]');
+  const head = await zi.locator('.tb-headline').innerText();
+  check('총평 한 줄: 명궁의 별과 가장 받쳐 주는/신경 쓸 영역을 말한다', head.includes('명궁') && (head.includes('받쳐 주는') || head.includes('신경 쓸') || head.includes('무난')), head);
+  const paras = await zi.locator('.tb-overview .tb-para h4').allInnerTexts();
+  check('총평 문단: 바탕·신궁·핵심 네 칸·인생의 테마가 있다', ['바탕(명궁)', '신궁', '핵심 네 칸의 균형', '인생의 테마(타고난 네 가지 변화)'].every((t) => paras.includes(t)), paras.join('|'));
+  check('총평 문단 제목에 풀이 없는 용어(사화·대한)를 쓰지 않고, 지금의 흐름은 “10년 운”으로 부른다', paras.includes('지금의 흐름(10년 운)') && !paras.some((t) => /사화|대한/.test(t)), paras.join('|'));
+  check('총평에 핵심어 칩과 종합 조언이 있다', (await zi.locator('.tb-overview .tb-chips li').count()) >= 1 && (await zi.locator('.tb-advice-box li').count()) >= 1);
+  const domains = await zi.locator('.tb-card').evaluateAll((els) => els.map((e) => e.getAttribute('data-domain')));
+  check('영역 카드 6개: 성격·재물·직업·연애·건강·대인', JSON.stringify(domains) === JSON.stringify(['self', 'wealth', 'career', 'love', 'health', 'people']), domains.join(','));
+  check('영역마다 경향 배지와 결론 문장이 있다', await zi.locator('.tb-card').evaluateAll((els) => els.every((e) => e.querySelector('.lv') && (e.querySelector('.tb-verdict')?.textContent ?? '').length > 10)));
+  check('경향은 색뿐 아니라 기호(▲▼●)와 글자로도 표시된다', await zi.locator('.tb-card .lv').evaluateAll((els) => els.every((e) => /[▲▼●]/.test(e.textContent ?? '') && /(좋은 편|무난한 편|신경 쓸 편|조심할 편)/.test(e.textContent ?? ''))));
+  check('한눈에 보기 띠에 영역 6개', (await zi.locator('.tb-strip li').count()) === 6);
+  const ev = zi.locator('.tb-card').nth(1).locator('details.tb-evidence');
+  check('근거 보기는 접혀 있다', !(await ev.evaluate((d) => d.open)));
+  await ev.locator('summary').click();
+  const evText = await ev.innerText();
+  check('근거를 열면 규칙 번호와 이 명반의 값이 보인다(ZD-01·ZQ-01·ZP-0x)', evText.includes('ZD-01') && evText.includes('ZQ-01') && /ZP-0\d/.test(evText) && evText.includes('ZD-SUM'), evText.slice(0, 200));
+  check('성격·기질 카드의 풀이는 접혀 있다(총평과 겹쳐서)', (await zi.locator('.tb-card').first().locator('details.tb-fold').count()) === 1);
+  const periods = await zi.locator('.tb-period').count();
+  check('대한 10구간(100세까지)이 나온다', periods === 10, periods);
+  check('현재 대한(지금)이 한 곳 강조된다', (await zi.locator('.tb-period.now').count()) === 1 && (await zi.locator('.tb-now').count()) === 1);
+  check('T6 의 대한은 구간끼리 차이가 작아 안내가 보이고 “가장 나은 때” 표시는 없다', (await zi.locator('[data-testid="decade-flat-note"]').count()) === 1 && (await zi.locator('.tb-standing').count()) === 0);
+  check('총평에서 처음 나오는 전문용어에 풀이가 붙는다(삼방사정·화록)', (await zi.locator('.tb-overview .term-first').allInnerTexts()).some((t) => t.includes('화록') || t.includes('삼방사정')));
+  const zText = await zi.innerText();
+  check('한계 고지 4줄이 화면에 있다', zText.includes('전문가 감수를 받지 않았습니다') && zText.includes('상대 위치') && zText.includes('진단·투자·법률 조언이 아닙니다') && zText.includes('판정하지 않습니다'));
+  check('단정·공포 표현이 없다', !/반드시|틀림없이|무조건|사망|저주/.test(zText));
+  check('10년 구간 수를 열두 개로 말하지 않는다(대한은 100세까지 10구간)', !/열두 ?(구간|10년)/.test(zText));
+  check('자미두수 대한의 나이는 세는나이로(“만” 없이) 적는다', await zi.locator('.tb-period .tb-period-head b').evaluateAll((els) => els.length === 10 && els.every((e) => /^\d+~\d+세$/.test((e.textContent ?? '').trim()))));
+  check('종합 통변 화면에 용어 표시({{ }})가 그대로 보이지 않는다', !zText.includes('{{') && !zText.includes('}}'));
+  await page.screenshot({ path: `${OUT}/16-tongbyeon.png`, fullPage: true });
+  const ziLevels = await zi.locator('.tb-card').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.getAttribute('data-domain'), e.getAttribute('data-level')])));
+
+  // 칸을 누르면 궁 해설로 이동한다
+  await cell(page, 2).click();
+  check('명반의 칸을 누르면 궁 해설 탭으로 바뀐다', (await tabBtn(page, '궁 해설').getAttribute('aria-selected')) === 'true' && (await page.locator('.palace-card').count()) === 1);
+
+  // ── 사주 통변 ──
+  await tabBtn(page, '사주 통변').click();
+  const sa = page.locator('[data-testid="tongbyeon-saju"]');
+  const sHead = await sa.locator('.tb-headline').innerText();
+  check('사주 총평 한 줄: 일간·강약·격국·용신', sHead.includes('일간') && /(신강|신약|중화)/.test(sHead) && sHead.includes('격국') && sHead.includes('용신'), sHead);
+  const sParas = await sa.locator('.tb-overview .tb-para h4').allInnerTexts();
+  check('사주 총평 문단: 바탕·힘의 세기·격국·필요한 기운·글자끼리의 관계', ['바탕', '힘의 세기', '격국(큰 틀)', '필요한 기운(용신)'].every((t) => sParas.includes(t)), sParas.join('|'));
+  check('사주 영역 카드 6개와 대운 흐름', (await sa.locator('.tb-card').count()) === 6 && (await sa.locator('.tb-period').count()) >= 8);
+  check('사주 대운의 나이에는 “만”을 붙인다(자미두수 대한은 세는나이라 같은 해라도 나이가 한 살 다르게 보인다)', await sa.locator('.tb-period .tb-period-head b').evaluateAll((els) => els.length >= 8 && els.every((e) => /^만 \d+~\d+세$/.test((e.textContent ?? '').trim()))));
+  check('대운 흐름에서 현재 대운이 한 곳 강조된다', (await sa.locator('.tb-period.now').count()) === 1);
+  check('T6 의 대운: 가장 나은 때·가장 신경 쓸 때가 한 번씩 표시되고 안내문은 없다', (await sa.locator('.tb-standing-best').count()) === 1 && (await sa.locator('.tb-standing-worst').count()) === 1 && (await sa.locator('[data-testid="daeun-flat-note"]').count()) === 0);
+  const saLevels = await sa.locator('.tb-card').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.getAttribute('data-domain'), e.getAttribute('data-level')])));
+  check('사주 총평에서 용어(격국·용신 등)에 풀이가 붙는다', (await sa.locator('.tb-overview .term-first').count()) >= 2);
+  const saText = await sa.innerText();
+  check('사주 통변 화면에 용어 표시({{ }})가 그대로 보이지 않는다', !saText.includes('{{') && !saText.includes('}}'));
+  await page.screenshot({ path: `${OUT}/17-saju-tongbyeon.png`, fullPage: true });
+
+  // ── 통변 비교 ──
+  await tabBtn(page, '통변 비교').click();
+  const cp = page.locator('[data-testid="tongbyeon-compare"]');
+  const rows = await cp.locator('[data-testid="compare-matrix"] tbody tr').evaluateAll((trs) =>
+    trs.map((tr) => ({ domain: tr.getAttribute('data-domain'), verdict: tr.getAttribute('data-verdict'), z: tr.querySelector('td:nth-child(2) .lv')?.getAttribute('data-level'), s: tr.querySelector('td:nth-child(3) .lv')?.getAttribute('data-level'), shown: tr.querySelector('.vd')?.textContent?.trim() })));
+  check('비교표 6줄(영역 순서대로)', rows.map((r) => r.domain).join(',') === 'self,wealth,career,love,health,people', JSON.stringify(rows));
+  check('각 줄의 판정이 독립 표(일치·보완·엇갈림)와 같다', rows.every((r) => (r.shown ?? '').endsWith(verdictText(r.z, r.s))), JSON.stringify(rows));
+  check('비교표의 단계가 종합 통변·사주 통변 화면의 단계와 같다', rows.every((r) => r.z === ziLevels[r.domain] && r.s === saLevels[r.domain]), JSON.stringify({ rows, ziLevels, saLevels }));
+  const cards = await cp.locator('.tb-cmp').evaluateAll((els) => els.map((e) => ({ v: e.getAttribute('data-verdict'), text: e.innerText })));
+  check('영역별 비교 카드 6개: 두 체계의 결론·근거·공통/각자 주제', cards.length === 6 && cards.every((c) => c.text.includes('자미두수') && c.text.includes('사주') && c.text.includes('두 체계가 함께 말한 것') && c.text.includes('근거')));
+  check('판정마다 첫 카드에만 “읽는 법”이 붙는다(되풀이하지 않음)', ['agree', 'complement', 'conflict'].every((v) => cards.filter((c) => c.v === v).every((c, i) => c.text.includes('읽는 법') === (i === 0))), JSON.stringify(cards.map((c) => [c.v, c.text.includes('읽는 법')])));
+  const cpText = await cp.innerText();
+  check('통변 비교 화면에 용어 표시({{ }})가 그대로 보이지 않는다(짝 없는 시기 안내 포함)', !cpText.includes('{{') && !cpText.includes('}}') && cpText.includes('비교하지 않았습니다'));
+  const sum = await cp.locator('.tb-sum-lines').innerText();
+  const counts = { agree: rows.filter((r) => r.verdict === 'agree').length, complement: rows.filter((r) => r.verdict === 'complement').length, conflict: rows.filter((r) => r.verdict === 'conflict').length };
+  check('요약 문장의 개수가 비교표와 같다', sum.includes(`여섯 영역 중 ${counts.agree}개는 일치, ${counts.complement}개는 보완, ${counts.conflict}개는 엇갈립니다.`), sum);
+  check('요약: 같은 쪽으로 가장 강하게 보는 영역과 두 체계의 단계(같으면 “둘 다”, 다르면 더 강한 쪽)를 말한다', /같은 쪽으로 가장 강하게 보는 영역은 .+입니다\. (둘 다 .+봅니다|둘 다 .+보며, (사주|자미두수)가 더 강하게 봅니다)/.test(sum), sum);
+  const sajuSides = await cp.locator('[data-testid="compare-periods"] .tb-side-saju small').allInnerTexts();
+  check('시기 비교: 짝이 된 대운의 이름과 연도가 함께 보인다(나이가 달라 보이는 이유를 연도로 확인할 수 있다)', sajuSides.length >= 6 && sajuSides.every((t) => /대운 · \d{4}~\d{4}년/.test(t)), JSON.stringify(sajuSides));
+  const pairs = await cp.locator('[data-testid="compare-periods"] > li').count();
+  check('시기 비교: 대한 10구간이 대운과 짝지어 나온다', pairs === 10, pairs);
+  check('시기 비교: 현재 대한이 한 곳 강조된다', (await cp.locator('[data-testid="compare-periods"] > li.now').count()) === 1);
+  const pv = await cp.locator('[data-testid="compare-periods"] > li').evaluateAll((els) => els.map((e) => ({ v: e.getAttribute('data-verdict'), z: e.querySelector('.tb-side-ziwei .lv')?.getAttribute('data-level'), s: e.querySelector('.tb-side-saju .lv')?.getAttribute('data-level') })));
+  check('시기 판정도 독립 표와 같다(짝이 있는 구간)', pv.every((p) => p.v === 'none' || ({ agree: '일치', complement: '보완', conflict: '엇갈림' }[p.v] === verdictText(p.z, p.s))), JSON.stringify(pv));
+  await cp.locator('details.how-to-read summary').click();
+  const how = await cp.locator('details.how-to-read').innerText();
+  check('읽는 법에 판정 3종과 “어느 쪽이 맞는지 판정하지 않는다”가 있다', ['일치', '보완', '엇갈림', '판정하지 않습니다', '맞다는 증거는 아닙니다'].every((t) => how.includes(t)), how);
+  await page.screenshot({ path: `${OUT}/18-compare.png`, fullPage: true });
+
+  // ── 설정 연동: 밝기 7단계는 문장만 바꾸고 단계·판정은 그대로 ──
+  await tabBtn(page, '종합 통변').click();
+  const powerBefore = (await page.locator('[data-testid="tongbyeon-ziwei"] .tb-pt-power').first().innerText());
+  await page.getByRole('button', { name: '표시 옵션' }).click();
+  await page.waitForSelector('[role="dialog"]');
+  await page.locator('input[name="br"]').nth(1).check();
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('[role="dialog"]', { state: 'detached' });
+  const ziLevels7 = await page.locator('[data-testid="tongbyeon-ziwei"] .tb-card').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.getAttribute('data-domain'), e.getAttribute('data-level')])));
+  check('밝기 7단계로 바꿔도 영역별 단계는 그대로다', JSON.stringify(ziLevels7) === JSON.stringify(ziLevels), JSON.stringify([ziLevels, ziLevels7]));
+  const powerAfter = (await page.locator('[data-testid="tongbyeon-ziwei"] .tb-pt-power').first().innerText());
+  check('밝기 문장은 7단계 표기로 바뀔 수 있다(문장은 유지되거나 용어만 달라짐)', typeof powerAfter === 'string' && powerAfter.length > 5 && typeof powerBefore === 'string', `${powerBefore} → ${powerAfter}`);
+  await ctx.close();
+});
+
+await run('대한·대운의 위치 표시: 구간끼리 차이가 큰 명반에서는 가장 나은 때와 가장 신경 쓸 때가 문구로 표시된다', async () => {
+  const { page, ctx } = await newPage();
+  await open(page, 'y=1975&m=4&d=20&h=8&g=F&cal=solar');
+  await page.waitForSelector('[data-testid="tongbyeon-ziwei"]');
+  const zi = page.locator('[data-testid="tongbyeon-ziwei"]');
+  const best = await zi.locator('.tb-standing-best').allInnerTexts();
+  const worst = await zi.locator('.tb-standing-worst').allInnerTexts();
+  check('대한: 가장 나은 때 1곳 · 가장 신경 쓸 때 1곳, 안내문은 없다', best.length === 1 && worst.length === 1 && (await zi.locator('[data-testid="decade-flat-note"]').count()) === 0, JSON.stringify({ best, worst }));
+  check('표시는 색뿐 아니라 문구로 읽힌다', best[0].includes('가장 나은 때') && worst[0].includes('가장 신경 쓸 때'));
+  const lv = async (cls) => Number(await zi.locator(`.tb-period:has(.tb-standing-${cls})`).getAttribute('data-level'));
+  const [lb, lw] = [await lv('best'), await lv('worst')];
+  check('가장 나은 때의 단계가 가장 신경 쓸 때의 단계보다 낮지 않다', lb >= lw, `${lb} / ${lw}`);
+  // 영역 카드: “이렇게 본 이유”가 카드마다 있고, 단계가 낮은 카드는 나쁜 요소·높은 카드는 좋은 요소를 든다(성격 카드도 접히지 않은 채 보인다)
+  const whys = await zi.locator('.tb-card').evaluateAll((els) => els.map((e) => ({ d: e.getAttribute('data-domain'), lv: Number(e.getAttribute('data-level')), why: e.querySelector('[data-testid="card-why"]')?.textContent ?? '' })));
+  check('영역 카드 6개 모두 “이렇게 본 이유”가 보인다', whys.length === 6 && whys.every((w) => w.why.includes('이렇게 본 이유') && w.why.length > 12), JSON.stringify(whys));
+  await ctx.close();
+});
+
+await run('통변 비교(엇갈림이 있는 명반): 엇갈린 영역의 안내·판정 불가 문구와 읽는 법의 첫 카드 표시', async () => {
+  const { page, ctx } = await newPage();
+  await open(page, 'y=2001&m=11&d=5&h=1&g=M&cal=solar');
+  await tabBtn(page, '통변 비교').click();
+  const cp = page.locator('[data-testid="tongbyeon-compare"]');
+  const rows = await cp.locator('[data-testid="compare-matrix"] tbody tr').evaluateAll((trs) => trs.map((tr) => ({ d: tr.getAttribute('data-domain'), v: tr.getAttribute('data-verdict') })));
+  const conflicts = rows.filter((r) => r.v === 'conflict').map((r) => r.d);
+  check('이 명반은 엇갈린 영역이 둘 이상이다(재물·건강)', conflicts.length >= 2, JSON.stringify(rows));
+  const cards = await cp.locator('.tb-cmp').evaluateAll((els) => els.map((e) => ({ v: e.getAttribute('data-verdict'), text: e.innerText })));
+  const conflictCards = cards.filter((c) => c.v === 'conflict');
+  check('엇갈림 첫 카드에는 “판정하지 않으니” 안내가 있고 나머지 카드에는 되풀이되지 않는다', conflictCards[0].text.includes('판정하지 않으니') && conflictCards.slice(1).every((c) => !c.text.includes('판정하지 않으니')), JSON.stringify(conflictCards.map((c) => c.text.slice(0, 40))));
+  check('엇갈림 카드는 양쪽의 근거와 서로 다른 주제를 보여 준다', conflictCards.every((c) => c.text.includes('근거') && c.text.includes('자미두수만 말한 것') && c.text.includes('사주만 말한 것')));
+  await ctx.close();
+});
+
 // ── 4-1. 쉬운 해설(설계서 부록 B: E-01~E-10) ───────────────────────────────────
 await run('쉬운 해설(E-01~E-10): 한눈에 보기·읽는 법·사주로 보면·근거 접기', async () => {
   const { page, ctx } = await newPage();
   await open(page);
+  await tabBtn(page, '궁 해설').click();
   // 첫 화면의 선택 칸은 명궁(주성 없음 → 차성안궁)
   check('한눈에 보기 제목이 보인다', (await page.locator('.glance h4').innerText()) === '한눈에 보기');
   const g0 = await page.locator('.glance').innerText();
@@ -253,8 +408,9 @@ await run('쉬운 해설(E-01~E-10): 한눈에 보기·읽는 법·사주로 보
   check('요약표 설명이 쉬운 말이다(도움이 되는 요소·신경 쓸 요소)', (await page.locator('.table-note').innerText()).includes('도움이 되는 요소'));
   await page.screenshot({ path: `${OUT}/03-explain-easy.png`, fullPage: true });
 
-  // 사주 비교: 근거는 접혀 있고 열면 보인다
-  await page.getByRole('tab', { name: '사주 비교' }).click();
+  // 통변 비교의 이론 비교: 근거는 접혀 있고 열면 보인다
+  await tabBtn(page, '통변 비교').click();
+  await page.locator('details.tb-theory > summary').click();
   const boxes = page.locator('.cmp-card details.evidence-box');
   check('근거 보기가 항목마다 접혀 있다(10개)', (await boxes.count()) === 10 && (await boxes.evaluateAll((els) => els.every((e) => !e.open))));
   const cardTexts = (await page.locator('.cmp-card').allInnerTexts()).join('\n');
@@ -282,8 +438,11 @@ await run('입춘 기준: 절입 시각 전후의 연주(번들 검증)', async 
     await open(page, `g=M&cal=solar&${query}&yb=ipchun`);
     const center = await page.locator('.center').innerText();
     check(`${label}: 명반 연주 ${year}`, center.includes(`${year}년`) && center.includes('입춘 기준'), center);
-    await page.getByRole('tab', { name: '사주 비교' }).click();
+    await tabBtn(page, '사주 통변').click();
+    const foldEl = page.locator('details.tb-saju-table');
+    if (!(await foldEl.evaluate((d) => d.open))) await foldEl.locator('summary').click();
     const pillars = await page.locator('.pillars').innerText();
+    await tabBtn(page, '통변 비교').click();
     const notice = await page.locator('.notice').innerText();
     check(`${label}: 사주 연주도 ${year}, 연주 불일치 경고 없음`, pillars.includes(year) && !notice.includes('연주가 다릅니다'), `${pillars.replace(/\s+/g, ' ')} / ${notice}`);
   }
@@ -303,10 +462,10 @@ await run('음력 기준(I-15): 한국·중국이 다른 날 — 표시·전환�
   center = await page.locator('.center').innerText();
   check('중국으로 바꾸면 즉시 윤4월 1일 (중국 기준), 한국 기준 4월 1일이 함께 보인다', /윤4월 1일\s*\(중국 기준\)/.test(center) && center.includes('한국 기준 4월 1일'), center);
   // (2012-05-21 은 윤4월 1일 ↔ 4월 1일이라 윤달 전반부 보정으로 명반 자체는 같다 — 명반이 달라지는 날은 아래 2023-05-19 로 확인)
-  // 사주 비교 탭의 달력 알림
-  await page.getByRole('tab', { name: '사주 비교' }).click();
+  // 통변 비교 탭의 달력 알림
+  await tabBtn(page, '통변 비교').click();
   const notice = await page.locator('.notice').innerText();
-  check('사주 비교: 두 기준의 음력 날짜를 알려 준다', notice.includes('달력 기준') && notice.includes('한국') && notice.includes('중국'), notice);
+  check('통변 비교: 두 기준의 음력 날짜를 알려 준다', notice.includes('달력 기준') && notice.includes('한국') && notice.includes('중국'), notice);
   await page.screenshot({ path: `${OUT}/15-lunar-basis-china.png`, fullPage: true });
   // 링크에는 중국 기준이 담기고(lb=cn), 열면 같은 기준으로 복원된다
   await page.getByRole('button', { name: '링크 복사' }).click();
@@ -641,7 +800,7 @@ await run('배포 형태: file:// 직접 열기 · 하위 경로(/Zamidusu/) 호
 });
 
 // ── 10-3. 화면 폭별 배치(태블릿 구간 포함) ─────────────────────────────────────────
-await run('화면 폭별 배치: 3열 → 2열 → 모바일 3탭, 가로 넘침 없음', async () => {
+await run('화면 폭별 배치: 3열 → 2열 → 모바일 5탭, 가로 넘침 없음', async () => {
   const { page, ctx } = await newPage({ width: 1440, height: 900 });
   const box = async (sel) => (await page.locator(sel).first().boundingBox());
   const overflow = async () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -666,7 +825,7 @@ await run('화면 폭별 배치: 3열 → 2열 → 모바일 3탭, 가로 넘침
   }
   await page.setViewportSize({ width: 760, height: 900 });
   await open(page, 'y=1990&m=1&d=30&h=12&g=M&cal=solar');
-  check('760px 이하: 모바일 3탭', (await page.locator('.mobile-tabs button').count()) === 3 && (await page.locator('.mobile-tabs').isVisible()));
+  check('760px 이하: 모바일 5탭(명반·종합 통변·궁 해설·사주 통변·통변 비교)', (await page.locator('.mobile-tabs button').count()) === 5 && (await page.locator('.mobile-tabs').isVisible()));
   check('760px: 가로 넘침 없음', (await overflow()) <= 1, await overflow());
   await ctx.close();
 });
@@ -686,14 +845,27 @@ await run('접근성(axe-core): 라이트·다크 × 데스크톱·모바일, �
   for (const scheme of ['light', 'dark']) {
     const { page, ctx } = await newPage({ width: 1440, height: 1000 }, { scheme });
     await open(page, H);
-    await scan(page, `${scheme} 데스크톱 · 본명+궁 해설`);
+    await scan(page, `${scheme} 데스크톱 · 본명+종합 통변`);
     await page.locator('details.how-to-read summary').click();
-    await scan(page, `${scheme} 데스크톱 · 읽는 법 열림`);
+    await scan(page, `${scheme} 데스크톱 · 종합 통변(읽는 법 열림)`);
     await page.locator('details.how-to-read summary').click();
-    await page.getByRole('tab', { name: '사주 비교' }).click();
-    await scan(page, `${scheme} 데스크톱 · 사주 비교`);
+    await page.locator('.tb-card details.tb-evidence summary').first().click();
+    await page.locator('.tb-card details.tb-fold summary').first().click();
+    await scan(page, `${scheme} 데스크톱 · 종합 통변(근거·풀이 열림)`);
+    await page.getByRole('tab', { name: '궁 해설' }).click();
+    await scan(page, `${scheme} 데스크톱 · 궁 해설`);
+    await page.locator('details.how-to-read summary').click();
+    await scan(page, `${scheme} 데스크톱 · 궁 해설(읽는 법 열림)`);
+    await page.locator('details.how-to-read summary').click();
+    await page.getByRole('tab', { name: '사주 통변' }).click();
+    await scan(page, `${scheme} 데스크톱 · 사주 통변`);
+    await page.locator('details.tb-saju-table summary').click();
+    await scan(page, `${scheme} 데스크톱 · 사주 통변(표 열림)`);
+    await page.getByRole('tab', { name: '통변 비교' }).click();
+    await scan(page, `${scheme} 데스크톱 · 통변 비교`);
+    await page.locator('details.tb-theory > summary').click();
     await page.locator('.cmp-card details.evidence-box summary').first().click();
-    await scan(page, `${scheme} 데스크톱 · 사주 비교(근거 열림)`);
+    await scan(page, `${scheme} 데스크톱 · 통변 비교(이론·근거 열림)`);
     await page.getByRole('tab', { name: '궁 해설' }).click();
     for (const name of ['대한', '유년', '유시']) {
       await page.getByRole('tab', { name }).click();
@@ -727,8 +899,12 @@ await run('접근성(axe-core): 라이트·다크 × 데스크톱·모바일, �
     await page.locator('.cell[data-branch="2"]').click();
     await page.locator('.peek').click();
     await scan(page, `${scheme} 모바일 · 궁 해설 탭`);
-    await page.locator('.mobile-tabs button').nth(2).click();
-    await scan(page, `${scheme} 모바일 · 사주 비교 탭`);
+    await page.locator('.mobile-tabs button').nth(1).click();
+    await scan(page, `${scheme} 모바일 · 종합 통변 탭`);
+    await page.locator('.mobile-tabs button').nth(3).click();
+    await scan(page, `${scheme} 모바일 · 사주 통변 탭`);
+    await page.locator('.mobile-tabs button').nth(4).click();
+    await scan(page, `${scheme} 모바일 · 통변 비교 탭`);
     await ctx.close();
   }
   {
@@ -740,12 +916,12 @@ await run('접근성(axe-core): 라이트·다크 × 데스크톱·모바일, �
 });
 
 // ── 11. 모바일 ──────────────────────────────────────────────────────────────────
-await run('모바일(390px): 3탭, 가로 넘침 없음', async () => {
+await run('모바일(390px): 5탭, 가로 넘침 없음', async () => {
   const { page, ctx } = await newPage({ width: 390, height: 844 }, { scale: 2 });
   await open(page);
   const overflow = async () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   check('명반 탭: 가로 스크롤 없음', (await overflow()) <= 1, await overflow());
-  check('탭 3개', (await page.locator('.mobile-tabs button').count()) === 3);
+  check('탭 5개', (await page.locator('.mobile-tabs button').count()) === 5);
   check('명반 탭에서는 우측 패널이 숨겨진다', !(await page.locator('.side-panel').isVisible()));
   await page.screenshot({ path: `${OUT}/11-mobile-chart.png`, fullPage: true });
   await cell(page, 2).click();
@@ -754,10 +930,19 @@ await run('모바일(390px): 3탭, 가로 넘침 없음', async () => {
   check('궁 해설 탭: 패널이 보이고 명반은 숨겨진다', (await page.locator('.side-panel').isVisible()) && !(await page.locator('.chart-panel').isVisible()));
   check('궁 해설 탭: 가로 스크롤 없음', (await overflow()) <= 1, await overflow());
   await page.screenshot({ path: `${OUT}/11-mobile-explain.png`, fullPage: true });
-  await page.locator('.mobile-tabs button').nth(2).click();
-  check('사주 비교 탭: 표가 보인다', await page.locator('.pillars').isVisible());
-  check('사주 비교 탭: 가로 스크롤 없음', (await overflow()) <= 1, await overflow());
+  await page.locator('.mobile-tabs button').nth(1).click();
+  check('종합 통변 탭: 총평과 영역 카드 6개가 보인다', (await page.locator('.tb-overview').isVisible()) && (await page.locator('.tb-card').count()) === 6);
+  check('종합 통변 탭: 가로 스크롤 없음', (await overflow()) <= 1, await overflow());
+  await page.screenshot({ path: `${OUT}/11-mobile-tongbyeon.png`, fullPage: true });
+  await page.locator('.mobile-tabs button').nth(3).click();
+  await page.locator('details.tb-saju-table summary').click();
+  check('사주 통변 탭: 사주 표가 보인다', await page.locator('.pillars').isVisible());
+  check('사주 통변 탭: 가로 스크롤 없음', (await overflow()) <= 1, await overflow());
   await page.screenshot({ path: `${OUT}/11-mobile-saju.png`, fullPage: true });
+  await page.locator('.mobile-tabs button').nth(4).click();
+  check('통변 비교 탭: 비교표 6줄이 보인다', (await page.locator('[data-testid="compare-matrix"] tbody tr').count()) === 6 && (await page.locator('[data-testid="compare-matrix"]').isVisible()));
+  check('통변 비교 탭: 가로 스크롤 없음', (await overflow()) <= 1, await overflow());
+  await page.screenshot({ path: `${OUT}/11-mobile-compare.png`, fullPage: true });
   await page.locator('.mobile-tabs button').nth(0).click();
   await page.getByRole('button', { name: '입력 열기' }).click();
   check('입력 열기 → 폼이 보인다', await page.locator('.input-form').isVisible());

@@ -141,7 +141,7 @@ export interface SajuEngine {
 const BEIJING_MS = 8 * 3600 * 1000;
 const parsePair = (gz: string): { stem: number; branch: number } => ({ stem: H(gz[0]), branch: BRANCHES.indexOf(gz[1] as (typeof BRANCHES)[number]) });
 
-const makePillar = (gz: string, dayStem: number, isDay: boolean): SajuPillar => {
+export const makePillar = (gz: string, dayStem: number, isDay: boolean): SajuPillar => {
   const { stem, branch } = parsePair(gz);
   const hidden = HIDDEN_STEMS[branch].map((h) => ({ stem: h, god: tenGodOf(dayStem, h) }));
   return {

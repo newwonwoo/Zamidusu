@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildView, decadalList, viewForDecade } from '../core/chart';
 import type { ViewTarget, YearBasis } from '../core/chart';
 import type { Scope } from '../core/names';
+import { buildTongbyeon } from '../core/tongbyeon';
 import { PALACE_SHORT } from '../core/names';
 import { KOREA_ID } from '../core/place';
 import { representativeClock } from '../core/time';
@@ -14,7 +15,9 @@ import { ExplainPanel } from './ExplainPanel';
 import { HourUnknown } from './HourUnknown';
 import { InputPanel } from './InputPanel';
 import { ReverseInput } from './ReverseInput';
-import { SajuPanel } from './SajuPanel';
+import { ComparePanel } from './ComparePanel';
+import { SajuTongbyeonPanel } from './SajuTongbyeonPanel';
+import { TongbyeonPanel } from './TongbyeonPanel';
 import { computeOutcome, currentDecadeIndex } from './compute';
 import type { Outcome } from './compute';
 import { defaultForm, defaultPlaceId, defaultSettings, formFromLocation, formToQuery, loadSettings, saveSettings } from './state';
@@ -22,7 +25,9 @@ import type { FormState, Settings } from './state';
 import { stopSpeech } from './speech';
 
 type Dialogs = null | 'font' | 'options' | 'manse';
-type MobileTab = 'chart' | 'explain' | 'saju';
+type RightTab = 'tongbyeon' | 'explain' | 'saju' | 'compare';
+type MobileTab = 'chart' | RightTab;
+const RIGHT_TABS: [RightTab, string][] = [['tongbyeon', '종합 통변'], ['explain', '궁 해설'], ['saju', '사주 통변'], ['compare', '통변 비교']];
 
 const todayTarget = (shiftMinutes = 0): ViewTarget => {
   const t = new Date();
@@ -53,7 +58,7 @@ export default function App() {
   const [decadeIndex, setDecadeIndex] = useState(0);
   const [target, setTarget] = useState<ViewTarget>(() => todayTarget(!compat && init.form.placeId === KOREA_ID && settings.correction !== 'none' ? 30 : 0));
   const [selected, setSelected] = useState(0);
-  const [rightTab, setRightTab] = useState<'explain' | 'saju'>('explain');
+  const [rightTab, setRightTab] = useState<RightTab>('tongbyeon');
   const [mobileTab, setMobileTab] = useState<MobileTab>('chart');
   const [inputTab, setInputTab] = useState<'basic' | 'reverse'>('basic');
   const [inputOpen, setInputOpen] = useState(true);
@@ -151,6 +156,12 @@ export default function App() {
     }
   }, [chart, scope, decadeIndex, target]);
 
+  const todayYear = useMemo(() => new Date().getFullYear(), []);
+  const tb = useMemo(
+    () => (outcome?.kind === 'chart' ? buildTongbyeon(outcome.chart, outcome.saju, { mode: settings.brightness, todayYear }) : null),
+    [outcome, settings.brightness, todayYear],
+  );
+
   const changeYearBasis = (b: YearBasis) => {
     const next = { ...form, yearBasis: b };
     setForm(next);
@@ -224,25 +235,30 @@ export default function App() {
 
   const selectCell = (b: number) => {
     setSelected(b);
+    setRightTab('explain');
     stopSpeech();
   };
 
   const goMobile = (t: MobileTab) => {
     setMobileTab(t);
-    if (t === 'explain') setRightTab('explain');
-    if (t === 'saju') setRightTab('saju');
+    if (t !== 'chart') setRightTab(t);
     window.scrollTo({ top: 0 });
   };
 
   const sideContent = (() => {
-    if (!outcome) return <p className="dim pad">입력을 마치고 ‘명반 보기’를 누르면 해설이 나타납니다.</p>;
-    if (outcome.kind === 'hour-unknown') return <p className="dim pad">태어난 시를 정하면 궁 해설과 사주 비교가 나타납니다.</p>;
-    if (!view) return null;
-    return rightTab === 'explain' ? (
-      <ExplainPanel chart={outcome.chart} view={view} saju={outcome.saju} settings={settings} selected={selected} onSelect={selectCell} notify={showToast} />
-    ) : (
-      <SajuPanel chart={outcome.chart} saju={outcome.saju} comparison={outcome.comparison} onYearBasis={changeYearBasis} />
-    );
+    if (!outcome) return <p className="dim pad">입력을 마치고 ‘명반 보기’를 누르면 통변과 해설이 나타납니다.</p>;
+    if (outcome.kind === 'hour-unknown') return <p className="dim pad">태어난 시를 정하면 종합 통변과 사주 통변, 비교가 나타납니다.</p>;
+    if (!view || !tb) return null;
+    switch (rightTab) {
+      case 'explain':
+        return <ExplainPanel chart={outcome.chart} view={view} saju={outcome.saju} settings={settings} selected={selected} onSelect={selectCell} notify={showToast} />;
+      case 'saju':
+        return <SajuTongbyeonPanel tb={tb} saju={outcome.saju} comparison={outcome.comparison} />;
+      case 'compare':
+        return <ComparePanel chart={outcome.chart} saju={outcome.saju} tb={tb} comparison={outcome.comparison} onYearBasis={changeYearBasis} />;
+      default:
+        return <TongbyeonPanel tb={tb} />;
+    }
   })();
 
   const correctionNote = outcome?.norm.correction?.note ?? null;
@@ -264,7 +280,7 @@ export default function App() {
       )}
 
       <nav className="mobile-tabs" aria-label="화면 전환">
-        {([['chart', '명반'], ['explain', '궁 해설'], ['saju', '사주 비교']] as [MobileTab, string][]).map(([k, label]) => (
+        {([['chart', '명반'], ['tongbyeon', '종합 통변'], ['explain', '궁 해설'], ['saju', '사주 통변'], ['compare', '통변 비교']] as [MobileTab, string][]).map(([k, label]) => (
           <button key={k} className={mobileTab === k ? 'on' : ''} aria-current={mobileTab === k ? 'page' : undefined} onClick={() => goMobile(k)}>{label}</button>
         ))}
       </nav>
@@ -335,10 +351,11 @@ export default function App() {
 
       {/* 모바일에서 명반 탭이 숨겨지면 이 패널이 화면의 본문이므로 main 역할을 넘겨 받는다(본문 영역은 항상 하나) */}
       <section className="side-panel" aria-label="해설" role={mobile && mobileTab !== 'chart' ? 'main' : undefined}>
-        <h2 className="sr-only">해설과 사주 비교</h2>
+        <h2 className="sr-only">통변과 해설</h2>
         <div className="seg side-tabs" role="tablist" aria-label="우측 패널">
-          <button role="tab" aria-selected={rightTab === 'explain'} className={rightTab === 'explain' ? 'on' : ''} onClick={() => setRightTab('explain')}>궁 해설</button>
-          <button role="tab" aria-selected={rightTab === 'saju'} className={rightTab === 'saju' ? 'on' : ''} onClick={() => setRightTab('saju')}>사주 비교</button>
+          {RIGHT_TABS.map(([k, label]) => (
+            <button key={k} role="tab" aria-selected={rightTab === k} className={rightTab === k ? 'on' : ''} onClick={() => setRightTab(k)}>{label}</button>
+          ))}
         </div>
         {sideContent}
       </section>

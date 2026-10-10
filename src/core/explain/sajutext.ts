@@ -28,7 +28,7 @@ const isHigh = (n: number): boolean => n >= 2;
 const count = (saju: SajuChart, g: TenGodGroup): number => saju.godCounts[g];
 
 // ── 일간(나)의 이미지와 태어난 달의 계절 ───────────────────────────────────────
-const STEM_IMAGE = [
+export const STEM_IMAGE = [
   '곧게 뻗는 큰 나무처럼 곧고 진취적인',
   '풀과 덩굴처럼 부드럽고 끈질긴',
   '해처럼 밝고 열정적인',
@@ -41,12 +41,12 @@ const STEM_IMAGE = [
   '비와 이슬처럼 조용하고 감수성이 풍부한',
 ];
 /** 월지(子丑寅…)별 계절 */
-const MONTH_SEASON = [
+export const MONTH_SEASON = [
   '한겨울', '늦겨울', '초봄', '한봄', '늦봄', '초여름', '한여름', '늦여름', '초가을', '한가을', '늦가을', '초겨울',
 ];
 
 // ── 오행과 몸 ────────────────────────────────────────────────────────────────
-const ELEMENT_BODY: Record<Element, string> = {
+export const ELEMENT_BODY: Record<Element, string> = {
   wood: '간·눈·근육', fire: '심장·혈액순환', earth: '위장·소화기', metal: '폐·호흡기·피부', water: '신장·방광·뼈',
 };
 const ELEMENT_ORDER: Element[] = ['wood', 'fire', 'earth', 'metal', 'water'];

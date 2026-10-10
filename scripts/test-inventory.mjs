@@ -14,19 +14,22 @@ if (!fs.existsSync(tmp)) {
 const data = JSON.parse(fs.readFileSync(tmp, 'utf8'));
 fs.rmSync(tmp);
 
+const skipped = data.numTotalTests - data.numPassedTests - data.numFailedTests;
 const lines = [
   '# 단위 테스트 목록 (자동 생성)',
   '',
   '`npm run test:inventory` 로 만든 목록입니다. 각 항목은 통과해야 하는 검증이며, 제목이 곧 검증 내용입니다.',
   '',
-  `- 전체 ${data.numTotalTests}건 · 통과 ${data.numPassedTests}건 · 실패 ${data.numFailedTests}건 · 파일 ${data.testResults.length}개`,
+  `- 전체 ${data.numTotalTests}건 · 통과 ${data.numPassedTests}건 · 실패 ${data.numFailedTests}건 · 건너뜀 ${skipped}건 · 파일 ${data.testResults.length}개`,
+  skipped > 0 ? '- 건너뜀(↷)은 평소에 돌리지 않는 **문서·경계값 생성기**입니다(환경변수 `WRITE_*` 또는 `CALIBRATE=1` 을 줘야 실행). 검증 항목이 아니라 실패가 아닙니다.' : '',
   '',
 ];
 const files = [...data.testResults].sort((a, b) => a.name.localeCompare(b.name));
 for (const f of files) {
   const name = path.relative(path.join(process.cwd(), 'tests'), f.name);
   const ok = f.assertionResults.filter((a) => a.status === 'passed').length;
-  lines.push(`## ${name} — ${ok}/${f.assertionResults.length}건`, '');
+  const skip = f.assertionResults.filter((a) => a.status !== 'passed' && a.status !== 'failed').length;
+  lines.push(`## ${name} — ${ok}/${f.assertionResults.length}건${skip > 0 ? ` (건너뜀 ${skip})` : ''}`, '');
   let cur = null;
   for (const a of f.assertionResults) {
     const group = a.ancestorTitles.join(' › ');
@@ -34,7 +37,7 @@ for (const f of files) {
       cur = group;
       if (group) lines.push('', `**${group}**`, '');
     }
-    lines.push(`- ${a.status === 'passed' ? '✓' : '✗'} ${a.title}`);
+    lines.push(`- ${a.status === 'passed' ? '✓' : a.status === 'failed' ? '✗' : '↷'} ${a.title}`);
   }
   lines.push('');
 }

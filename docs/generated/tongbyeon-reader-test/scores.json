@@ -1,0 +1,126 @@
+{
+  "round1": {
+    "readers": [
+      {
+        "reader": 1,
+        "person": "1990-01-30 남 12시",
+        "correct": 12,
+        "total": 13,
+        "wrong": [
+          "Q1 가장 신경 쓸 영역"
+        ],
+        "synthesized": 3,
+        "easy": 3,
+        "unknownWords": 7
+      },
+      {
+        "reader": 2,
+        "person": "1975-04-20 여 08시",
+        "correct": 12,
+        "total": 13,
+        "wrong": [
+          "Q1 가장 받쳐 주는 영역"
+        ],
+        "synthesized": 3,
+        "easy": 2,
+        "unknownWords": 10
+      },
+      {
+        "reader": 3,
+        "person": "2001-11-05 남 00시",
+        "correct": 11,
+        "total": 13,
+        "wrong": [
+          "Q1 가장 받쳐 주는 영역",
+          "Q1 가장 신경 쓸 영역"
+        ],
+        "synthesized": 3,
+        "easy": 2,
+        "unknownWords": 10
+      }
+    ],
+    "correct": 35,
+    "total": 39,
+    "meanSynthesized": 3,
+    "meanEasy": 2.33,
+    "meanUnknownWords": 9
+  },
+  "round2": {
+    "readers": [
+      {
+        "reader": 1,
+        "person": "1990-01-30 남 12시",
+        "correct": 13,
+        "total": 13,
+        "wrong": [],
+        "synthesized": 3,
+        "easy": 3,
+        "unknownWords": 10
+      },
+      {
+        "reader": 2,
+        "person": "1975-04-20 여 08시",
+        "correct": 13,
+        "total": 13,
+        "wrong": [],
+        "synthesized": 4,
+        "easy": 3,
+        "unknownWords": 10
+      },
+      {
+        "reader": 3,
+        "person": "2001-11-05 남 00시",
+        "correct": 13,
+        "total": 13,
+        "wrong": [],
+        "synthesized": 4,
+        "easy": 3,
+        "unknownWords": 10
+      }
+    ],
+    "correct": 39,
+    "total": 39,
+    "meanSynthesized": 3.67,
+    "meanEasy": 3,
+    "meanUnknownWords": 10
+  },
+  "round3": {
+    "readers": [
+      {
+        "reader": 1,
+        "person": "1990-01-30 남 12시",
+        "correct": 13,
+        "total": 13,
+        "wrong": [],
+        "synthesized": 4,
+        "easy": 3,
+        "unknownWords": 9
+      },
+      {
+        "reader": 2,
+        "person": "1975-04-20 여 08시",
+        "correct": 13,
+        "total": 13,
+        "wrong": [],
+        "synthesized": 3,
+        "easy": 3,
+        "unknownWords": 7
+      },
+      {
+        "reader": 3,
+        "person": "2001-11-05 남 00시",
+        "correct": 13,
+        "total": 13,
+        "wrong": [],
+        "synthesized": 4,
+        "easy": 3,
+        "unknownWords": 10
+      }
+    ],
+    "correct": 39,
+    "total": 39,
+    "meanSynthesized": 3.67,
+    "meanEasy": 3,
+    "meanUnknownWords": 8.67
+  }
+}
